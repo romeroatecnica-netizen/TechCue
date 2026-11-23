@@ -1,0 +1,6 @@
+{
+  "name": "TechCue — Interactive Pre-Tech, Gears, Pulleys & Circuits Game Trainer",
+  "description": "Interactive pre-technology and applied mechanics learning game for gears, pulleys, electric circuits, and levers. All simulations run deterministically in your browser with local progress saving.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
