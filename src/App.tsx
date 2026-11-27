@@ -1,9 +1,10 @@
-import {Anchor, Cog, Cpu, Zap} from 'lucide-react';
+import {Anchor, Cog, Cpu, Link2, Zap} from 'lucide-react';
 import {useMemo, useState} from 'react';
 import {AdSlot} from './components/AdSlot';
 import {AffiliateKits} from './components/AffiliateKits';
 import {BlitzModule} from './components/BlitzModule';
 import {CircuitsModule} from './components/CircuitsModule';
+import {DuelArena} from './components/DuelArena';
 import {EditorialSeoSection} from './components/EditorialSeoSection';
 import {Footer} from './components/Footer';
 import {GearsModule} from './components/GearsModule';
@@ -14,6 +15,11 @@ import type {LocaleCode} from './config/seo';
 import {useSeoHead} from './hooks/useSeoHead';
 import {detectInitialLanguage, persistLanguage, TRANSLATIONS} from './i18n';
 import type {ModuleId} from './i18n/types';
+import {
+  clearDuelFromUrl,
+  readInitialDuelFromUrl,
+  type DuelPayload,
+} from './utils/challengeEngine';
 import {loadSoundPreference, playClick, setSoundEnabled} from './utils/sound';
 import {
   createDefaultProfile,
@@ -26,7 +32,10 @@ import {
 export default function App() {
   const [lang, setLang] = useState<LocaleCode>(() => detectInitialLanguage());
   const [soundEnabled, setSoundState] = useState<boolean>(() => loadSoundPreference());
-  const [activeTab, setActiveTab] = useState<ModuleId>('gears');
+  const [incomingDuel, setIncomingDuel] = useState<DuelPayload | null>(() => readInitialDuelFromUrl());
+  const [activeTab, setActiveTab] = useState<ModuleId>(() =>
+    readInitialDuelFromUrl() ? 'duel' : 'gears'
+  );
   const [store, setStore] = useState<ProfileStore>(() => loadProfileStore());
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
@@ -73,8 +82,8 @@ export default function App() {
       modules: {
         ...p.modules,
         [moduleId]: {
-          solved: p.modules[moduleId].solved + 1,
-          attempts: p.modules[moduleId].attempts + 1,
+          solved: (p.modules[moduleId]?.solved ?? 0) + 1,
+          attempts: (p.modules[moduleId]?.attempts ?? 0) + 1,
         },
       },
     }));
@@ -94,6 +103,32 @@ export default function App() {
         },
       },
     }));
+  };
+
+  const handleCompleteDuel = (xp: number, won: boolean) => {
+    updateActiveProfile((p) => ({
+      ...p,
+      xp: p.xp + xp,
+      challengesSolved: p.challengesSolved + (won ? 1 : 0),
+      modules: {
+        ...p.modules,
+        duel: {
+          solved: (p.modules.duel?.solved ?? 0) + (won ? 1 : 0),
+          attempts: (p.modules.duel?.attempts ?? 0) + 1,
+        },
+      },
+    }));
+  };
+
+  const handleResetIncomingDuel = () => {
+    setIncomingDuel(null);
+    clearDuelFromUrl();
+  };
+
+  const handleOpenDuelTab = () => {
+    playClick();
+    setActiveTab('duel');
+    document.getElementById('trainer')?.scrollIntoView({behavior: 'smooth'});
   };
 
   const handleSelectProfile = (id: string) => {
@@ -145,10 +180,11 @@ export default function App() {
     {id: 'pulleys', label: t.tabs.pulleys, icon: Anchor},
     {id: 'circuits', label: t.tabs.circuits, icon: Cpu},
     {id: 'blitz', label: t.tabs.blitz, icon: Zap},
+    {id: 'duel', label: t.tabs.duel, icon: Link2},
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900">
+    <div className="min-h-screen text-slate-900">
       <Header
         t={t}
         lang={lang}
@@ -163,54 +199,70 @@ export default function App() {
       />
 
       <main>
-        {/* Hero & 4-Column Tabular KPI Strip */}
-        <section className="mx-auto max-w-7xl px-4 pt-8 pb-4 sm:px-6">
-          <div className="max-w-3xl">
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-4xl text-balance">
-              {t.hero.title}
-            </h1>
-            <p className="mt-3 text-base leading-relaxed text-slate-600">{t.hero.subtitle}</p>
-          </div>
+        {/* Architectural Dark Graphite Hero + Tabular KPI Strip */}
+        <section className="border-b border-slate-800 bg-[#0F172A] text-white">
+          <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+            <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+              <div className="max-w-3xl">
+                <h1 className="font-display text-2xl font-extrabold tracking-tight text-white sm:text-4xl text-balance">
+                  {t.hero.title}
+                </h1>
+                <p className="mt-3 text-base leading-relaxed text-slate-300">{t.hero.subtitle}</p>
+              </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs font-medium text-slate-500">{t.hero.statXp}</p>
-              <p className="font-mono-tabular mt-1 text-xl font-bold text-[#2563EB]">
-                {activeProfile.xp}
-              </p>
+              <div className="shrink-0">
+                <button
+                  type="button"
+                  onClick={handleOpenDuelTab}
+                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#EA580C] px-5 text-xs font-bold text-white hover:bg-orange-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  <Link2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {t.duel.heroBtn}
+                </button>
+              </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs font-medium text-slate-500">{t.hero.statStreak}</p>
-              <p className="font-mono-tabular mt-1 text-xl font-bold text-[#D97706]">
-                {activeProfile.dailyStreak} {t.hero.daysUnit}
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs font-medium text-slate-500">{t.hero.statSolved}</p>
-              <p className="font-mono-tabular mt-1 text-xl font-bold text-[#059669]">
-                {activeProfile.challengesSolved}
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs font-medium text-slate-500">{t.hero.statRank}</p>
-              <p className="mt-1 truncate text-base font-bold text-slate-900">
-                {t.common.level} {levelInfo.level} · {t.ranks[levelInfo.rankIndex]}
-              </p>
+
+            <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-slate-700 bg-slate-900/90 px-4 py-3">
+                <p className="text-xs font-medium text-slate-400">{t.hero.statXp}</p>
+                <p className="font-mono-tabular mt-1 text-xl font-bold text-sky-400">
+                  {activeProfile.xp}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/90 px-4 py-3">
+                <p className="text-xs font-medium text-slate-400">{t.hero.statStreak}</p>
+                <p className="font-mono-tabular mt-1 text-xl font-bold text-amber-400">
+                  {activeProfile.dailyStreak} {t.hero.daysUnit}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/90 px-4 py-3">
+                <p className="text-xs font-medium text-slate-400">{t.hero.statSolved}</p>
+                <p className="font-mono-tabular mt-1 text-xl font-bold text-emerald-400">
+                  {activeProfile.challengesSolved}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/90 px-4 py-3">
+                <p className="text-xs font-medium text-slate-400">{t.hero.statRank}</p>
+                <p className="mt-1 truncate text-base font-bold text-white">
+                  {t.common.level} {levelInfo.level} · {t.ranks[levelInfo.rankIndex]}
+                </p>
+              </div>
             </div>
           </div>
         </section>
 
         {/* Interactive Trainer Workspace */}
-        <section id="trainer" className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+        <section id="trainer" className="mx-auto max-w-7xl px-4 pt-6 pb-4 sm:px-6">
           {/* Segmented Module Selector */}
           <div
             role="tablist"
             aria-label={t.nav.trainer}
-            className="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-1.5 sm:grid-cols-4"
+            className="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-slate-300 bg-white p-1.5 sm:grid-cols-5"
           >
             {tabItems.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
+              const isDuel = tab.id === 'duel';
               return (
                 <button
                   key={tab.id}
@@ -223,8 +275,12 @@ export default function App() {
                   }}
                   className={`flex h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                     isActive
-                      ? 'bg-[#2563EB] text-white'
-                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      ? isDuel
+                        ? 'bg-[#EA580C] text-white'
+                        : 'bg-[#0F172A] text-white'
+                      : isDuel
+                        ? 'text-[#EA580C] hover:bg-orange-50'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -248,6 +304,16 @@ export default function App() {
               t={t}
               bestBlitzStreak={activeProfile.bestBlitzStreak}
               onRecordBlitzResult={handleRecordBlitzResult}
+            />
+          )}
+          {activeTab === 'duel' && (
+            <DuelArena
+              t={t}
+              lang={lang}
+              activeProfileName={activeProfile.name}
+              incomingDuel={incomingDuel}
+              onResetIncomingDuel={handleResetIncomingDuel}
+              onCompleteDuel={handleCompleteDuel}
             />
           )}
         </section>

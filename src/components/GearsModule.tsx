@@ -2,6 +2,13 @@ import {CheckCircle2, Minus, Play, Plus, RotateCcw, Square, XCircle} from 'lucid
 import {useEffect, useMemo, useRef, useState} from 'react';
 import type {TranslationDict} from '../i18n/types';
 import {
+  createFreshSeedCode,
+  generateGearBuilderMission,
+  generateGearQuiz,
+  type GeneratedGearMission,
+  type GeneratedGearQuiz,
+} from '../utils/challengeEngine';
+import {
   computeGearTrainKinematics,
   createGearPath,
   type GearSpec,
@@ -14,93 +21,25 @@ interface GearsModuleProps {
   onAwardXp: (xp: number) => void;
 }
 
-interface GearQuizItem {
-  id: string;
-  gears: GearSpec[];
-  motorDir: RotationDir;
-  motorRpm: number;
-}
-
-interface GearBuilderMission {
-  id: string;
-  targetDir: RotationDir;
-  targetRatio: number; // Z_out / Z_in
-  motorDir: RotationDir;
-}
-
-const QUIZ_LEVELS: GearQuizItem[] = [
-  {
-    id: 'q1',
-    gears: [
-      {id: 'g1', teeth: 12},
-      {id: 'g2', teeth: 24},
-    ],
-    motorDir: 'cw',
-    motorRpm: 60,
-  },
-  {
-    id: 'q2',
-    gears: [
-      {id: 'g1', teeth: 24},
-      {id: 'g2', teeth: 12},
-    ],
-    motorDir: 'ccw',
-    motorRpm: 40,
-  },
-  {
-    id: 'q3',
-    gears: [
-      {id: 'g1', teeth: 16},
-      {id: 'g2', teeth: 12},
-      {id: 'g3', teeth: 16},
-    ],
-    motorDir: 'cw',
-    motorRpm: 45,
-  },
-  {
-    id: 'q4',
-    gears: [
-      {id: 'g1', teeth: 12},
-      {id: 'g2', teeth: 20},
-      {id: 'g3', teeth: 24},
-    ],
-    motorDir: 'ccw',
-    motorRpm: 60,
-  },
-  {
-    id: 'q5',
-    gears: [
-      {id: 'g1', teeth: 24},
-      {id: 'g2', teeth: 16},
-      {id: 'g3', teeth: 12},
-      {id: 'g4', teeth: 12},
-    ],
-    motorDir: 'cw',
-    motorRpm: 40,
-  },
-];
-
-const BUILDER_MISSIONS: GearBuilderMission[] = [
-  {id: 'b1', targetDir: 'ccw', targetRatio: 2, motorDir: 'cw'},
-  {id: 'b2', targetDir: 'cw', targetRatio: 0.5, motorDir: 'cw'},
-  {id: 'b3', targetDir: 'cw', targetRatio: 1, motorDir: 'ccw'},
-  {id: 'b4', targetDir: 'ccw', targetRatio: 1.5, motorDir: 'ccw'},
-  {id: 'b5', targetDir: 'cw', targetRatio: 3, motorDir: 'cw'},
-];
-
 const TOOTH_OPTIONS = [8, 12, 16, 20, 24, 32];
 
 export function GearsModule({t, onAwardXp}: GearsModuleProps) {
   const [mode, setMode] = useState<'challenge' | 'builder'>('challenge');
 
-  // Challenge state
-  const [quizIdx, setQuizIdx] = useState(0);
+  // Procedural Challenge state
+  const [quizCount, setQuizCount] = useState(1);
+  const [activeQuiz, setActiveQuiz] = useState<GeneratedGearQuiz>(() =>
+    generateGearQuiz(createFreshSeedCode())
+  );
   const [guessDir, setGuessDir] = useState<RotationDir | null>(null);
   const [guessSpeed, setGuessSpeed] = useState<'faster' | 'same' | 'slower' | null>(null);
   const [quizFeedback, setQuizFeedback] = useState<'idle' | 'ok' | 'err'>('idle');
 
-  // Builder state
-  const [missionIdx, setMissionIdx] = useState(0);
+  // Procedural Builder state
+  const [missionCount, setMissionCount] = useState(1);
+  const [activeMission, setActiveMission] = useState<GeneratedGearMission>(() =>
+    generateGearBuilderMission(createFreshSeedCode())
+  );
   const [builderGears, setBuilderGears] = useState<GearSpec[]>([
     {id: 'b_g1', teeth: 12},
     {id: 'b_g2', teeth: 16},
@@ -112,9 +51,6 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
   const [isSpinning, setIsSpinning] = useState(true);
   const [anglesDeg, setAnglesDeg] = useState<number[]>([0, 0, 0, 0]);
   const anglesRef = useRef<number[]>([0, 0, 0, 0]);
-
-  const activeQuiz = QUIZ_LEVELS[quizIdx];
-  const activeMission = BUILDER_MISSIONS[missionIdx];
 
   const activeGears = mode === 'challenge' ? activeQuiz.gears : builderGears;
   const activeMotorDir = mode === 'challenge' ? activeQuiz.motorDir : builderMotorDir;
@@ -188,7 +124,8 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
 
   const handleNextQuiz = () => {
     playClick();
-    setQuizIdx((prev) => (prev + 1) % QUIZ_LEVELS.length);
+    setActiveQuiz(generateGearQuiz(createFreshSeedCode()));
+    setQuizCount((c) => c + 1);
     setGuessDir(null);
     setGuessSpeed(null);
     setQuizFeedback('idle');
@@ -212,9 +149,10 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
 
   const handleNextMission = () => {
     playClick();
-    const nextIdx = (missionIdx + 1) % BUILDER_MISSIONS.length;
-    setMissionIdx(nextIdx);
-    setBuilderMotorDir(BUILDER_MISSIONS[nextIdx].motorDir);
+    const next = generateGearBuilderMission(createFreshSeedCode());
+    setActiveMission(next);
+    setMissionCount((c) => c + 1);
+    setBuilderMotorDir(next.motorDir);
     setBuilderFeedback('idle');
   };
 
@@ -240,8 +178,8 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-      {/* Left / Top Zone: Interactive SVG Stage */}
-      <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-7">
+      {/* Left / Top Zone: Precision Drafting SVG Stage */}
+      <div className="flex flex-col justify-between rounded-xl border border-slate-300 bg-white p-4 sm:p-5 lg:col-span-7">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
           <div className="inline-flex rounded-lg bg-slate-100 p-1">
             <button
@@ -253,7 +191,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
               }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                 mode === 'challenge'
-                  ? 'bg-white text-slate-900 shadow-xs'
+                  ? 'bg-slate-900 text-white'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -268,7 +206,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
               }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                 mode === 'builder'
-                  ? 'bg-white text-slate-900 shadow-xs'
+                  ? 'bg-slate-900 text-white'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -282,7 +220,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
               playClick();
               setIsSpinning((s) => !s);
             }}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
           >
             {isSpinning ? (
               <>
@@ -291,28 +229,27 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
               </>
             ) : (
               <>
-                <Play className="h-3.5 w-3.5 text-[#059669]" aria-hidden="true" />
+                <Play className="h-3.5 w-3.5 text-[#047857]" aria-hidden="true" />
                 {t.common.testMechanism}
               </>
             )}
           </button>
         </div>
 
-        {/* SVG Stage */}
-        <div className="blueprint-grid relative flex min-h-[290px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 p-3">
+        {/* Dark Instrument SVG Stage */}
+        <div className="drafting-stage relative flex min-h-[290px] items-center justify-center overflow-hidden rounded-xl border border-slate-800 p-3">
           <svg
             viewBox={svgViewBox}
             className="h-[270px] w-full select-none"
             role="img"
             aria-label={t.tabs.gears}
           >
-            {/* Base mounting bar */}
             <line
               x1={firstGear.cx}
               y1={0}
               x2={lastGear.cx}
               y2={0}
-              stroke="#CBD5E1"
+              stroke="#334155"
               strokeWidth={6}
               strokeLinecap="round"
             />
@@ -320,8 +257,8 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
             {kinematics.map((g, idx) => {
               const isDriver = idx === 0;
               const isOutput = idx === kinematics.length - 1;
-              const fill = isDriver ? '#DBEAFE' : isOutput ? '#FEF3C7' : '#F1F5F9';
-              const stroke = isDriver ? '#2563EB' : isOutput ? '#D97706' : '#475569';
+              const fill = isDriver ? '#1E3A8A' : isOutput ? '#78350F' : '#1E293B';
+              const stroke = isDriver ? '#38BDF8' : isOutput ? '#F59E0B' : '#94A3B8';
               const gearPath = createGearPath(g.teeth);
               const rot = (anglesDeg[idx] ?? 0) + g.phaseOffsetDeg;
 
@@ -329,12 +266,11 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                 <g key={`${g.id}-${idx}`} transform={`translate(${g.cx}, ${g.cy})`}>
                   <g transform={`rotate(${rot.toFixed(2)})`}>
                     <path d={gearPath} fill={fill} stroke={stroke} strokeWidth={2} />
-                    {/* Spokes / directional notch */}
                     <circle
                       cx={0}
                       cy={0}
                       r={Math.max(5, g.pitchRadius * 0.28)}
-                      fill="#FFFFFF"
+                      fill="#0B1220"
                       stroke={stroke}
                       strokeWidth={1.8}
                     />
@@ -350,10 +286,8 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                     <circle cx={g.pitchRadius * 0.65} cy={0} r={3.5} fill={stroke} />
                   </g>
 
-                  {/* Center axle pin */}
-                  <circle cx={0} cy={0} r={4} fill="#0F172A" />
+                  <circle cx={0} cy={0} r={4} fill="#F8FAFC" />
 
-                  {/* Direction indicator above gear */}
                   {(isSpinning || mode === 'builder' || isDriver || quizFeedback !== 'idle') && (
                     <text
                       x={0}
@@ -367,14 +301,13 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                     </text>
                   )}
 
-                  {/* Tooth count label below gear */}
                   <text
                     x={0}
-                    y={g.pitchRadius + 16}
+                    y={g.pitchRadius + 17}
                     textAnchor="middle"
                     fontSize="11"
                     fontWeight="700"
-                    fill="#334155"
+                    fill="#E2E8F0"
                   >
                     {g.teeth}Z
                   </text>
@@ -388,13 +321,13 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
         <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200 pt-3 sm:grid-cols-4">
           <div>
             <p className="text-[11px] font-medium text-slate-500">{t.gears.driverMotor}</p>
-            <p className="font-mono-tabular text-sm font-bold text-[#2563EB]">
+            <p className="font-mono-tabular text-sm font-bold text-[#1D4ED8]">
               {firstGear.teeth}Z · {firstGear.rpm} RPM
             </p>
           </div>
           <div>
             <p className="text-[11px] font-medium text-slate-500">{t.gears.outputGear}</p>
-            <p className="font-mono-tabular text-sm font-bold text-[#D97706]">
+            <p className="font-mono-tabular text-sm font-bold text-[#EA580C]">
               {lastGear.teeth}Z ·{' '}
               {mode === 'challenge' && quizFeedback === 'idle' ? '???' : `${lastGear.rpm.toFixed(1)} RPM`}
             </p>
@@ -417,18 +350,17 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
       </div>
 
       {/* Right / Bottom Zone: Controls & Challenges */}
-      <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 lg:col-span-5">
+      <div className="flex flex-col justify-between rounded-xl border border-slate-300 bg-white p-5 lg:col-span-5">
         {mode === 'challenge' ? (
           <div className="flex h-full flex-col justify-between gap-5">
             <div>
               <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
                 <span>{t.gears.modeChallenge}</span>
                 <span className="font-mono-tabular">
-                  {quizIdx + 1} / {QUIZ_LEVELS.length}
+                  #{quizCount} · {activeQuiz.seed}
                 </span>
               </div>
 
-              {/* Question 1: Direction */}
               <div className="mt-4">
                 <p className="text-sm font-bold text-slate-900">{t.gears.questionDir}</p>
                 <div className="mt-2.5 grid grid-cols-2 gap-2.5">
@@ -443,7 +375,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                       }}
                       className={`h-11 rounded-lg border px-3 text-xs font-semibold transition-colors cursor-pointer ${
                         guessDir === dir
-                          ? 'border-[#2563EB] bg-blue-50 text-[#2563EB]'
+                          ? 'border-[#1D4ED8] bg-blue-50 text-[#1D4ED8]'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                       }`}
                     >
@@ -453,7 +385,6 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                 </div>
               </div>
 
-              {/* Question 2: Speed */}
               <div className="mt-5">
                 <p className="text-sm font-bold text-slate-900">{t.gears.questionSpeed}</p>
                 <div className="mt-2.5 grid grid-cols-1 gap-2">
@@ -474,7 +405,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                       }}
                       className={`h-10 rounded-lg border px-3 text-start text-xs font-semibold transition-colors cursor-pointer ${
                         guessSpeed === opt.id
-                          ? 'border-[#2563EB] bg-blue-50 text-[#2563EB]'
+                          ? 'border-[#1D4ED8] bg-blue-50 text-[#1D4ED8]'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                       }`}
                     >
@@ -490,7 +421,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                 <div
                   className={`flex items-start gap-2.5 rounded-lg border p-3 text-xs font-medium ${
                     quizFeedback === 'ok'
-                      ? 'border-emerald-200 bg-emerald-50 text-[#059669]'
+                      ? 'border-emerald-200 bg-emerald-50 text-[#047857]'
                       : 'border-red-200 bg-red-50 text-[#DC2626]'
                   }`}
                 >
@@ -508,14 +439,14 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                   type="button"
                   disabled={!guessDir || !guessSpeed}
                   onClick={handleCheckQuiz}
-                  className="h-11 flex-1 rounded-lg bg-[#2563EB] px-4 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                  className="h-11 flex-1 rounded-lg bg-[#1D4ED8] px-4 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                 >
                   {t.common.checkAnswer}
                 </button>
                 <button
                   type="button"
                   onClick={handleNextQuiz}
-                  className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
                 >
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                   {t.common.nextChallenge}
@@ -529,11 +460,11 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
               <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
                 <span>{t.gears.modeBuilder}</span>
                 <span className="font-mono-tabular">
-                  {missionIdx + 1} / {BUILDER_MISSIONS.length}
+                  #{missionCount} · {activeMission.seed}
                 </span>
               </div>
 
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3.5">
+              <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50/70 p-3.5">
                 <p className="text-xs font-medium text-slate-700">{t.gears.builderGoalPrefix}</p>
                 <p className="mt-1 font-mono-tabular text-sm font-bold text-slate-900">
                   {activeMission.targetDir === 'cw' ? `↻ ${t.common.cw}` : `↺ ${t.common.ccw}`} ·{' '}
@@ -541,7 +472,6 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                 </p>
               </div>
 
-              {/* Motor Direction & Gear Count */}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-700">{t.gears.motorDirControl}:</span>
@@ -552,7 +482,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                       setBuilderMotorDir((d) => (d === 'cw' ? 'ccw' : 'cw'));
                       setBuilderFeedback('idle');
                     }}
-                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-900 hover:bg-slate-100 cursor-pointer"
+                    className="h-9 rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-900 hover:bg-slate-100 cursor-pointer"
                   >
                     {builderMotorDir === 'cw' ? '↻ CW' : '↺ CCW'}
                   </button>
@@ -564,7 +494,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                     disabled={builderGears.length <= 2}
                     onClick={handleRemoveBuilderGear}
                     aria-label={t.gears.removeGear}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
                   >
                     <Minus className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -576,14 +506,13 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                     disabled={builderGears.length >= 4}
                     onClick={handleAddBuilderGear}
                     aria-label={t.gears.addGear}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
                   >
                     <Plus className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
-              {/* Per-gear Tooth Selector */}
               <div className="mt-4 space-y-2.5">
                 {builderGears.map((gear, idx) => (
                   <div
@@ -605,7 +534,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                           onClick={() => handleChangeTeeth(idx, z)}
                           className={`font-mono-tabular h-8 rounded px-2 text-xs font-semibold transition-colors cursor-pointer ${
                             gear.teeth === z
-                              ? 'bg-[#2563EB] text-white'
+                              ? 'bg-[#1D4ED8] text-white'
                               : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                           }`}
                         >
@@ -623,7 +552,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                 <div
                   className={`flex items-start gap-2.5 rounded-lg border p-3 text-xs font-medium ${
                     builderFeedback === 'ok'
-                      ? 'border-emerald-200 bg-emerald-50 text-[#059669]'
+                      ? 'border-emerald-200 bg-emerald-50 text-[#047857]'
                       : 'border-red-200 bg-red-50 text-[#DC2626]'
                   }`}
                 >
@@ -640,7 +569,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                 <button
                   type="button"
                   onClick={handleTestBuilder}
-                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#2563EB] px-4 text-xs font-semibold text-white hover:bg-blue-700 cursor-pointer"
+                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#EA580C] px-4 text-xs font-semibold text-white hover:bg-orange-700 cursor-pointer"
                 >
                   <Play className="h-3.5 w-3.5" aria-hidden="true" />
                   {t.common.testMechanism}
@@ -648,7 +577,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
                 <button
                   type="button"
                   onClick={handleNextMission}
-                  className="h-11 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
+                  className="h-11 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
                 >
                   {t.common.nextChallenge}
                 </button>

@@ -83,25 +83,26 @@ export function ProfileModal({
     {id: 'pulleys', label: t.tabs.pulleys},
     {id: 'circuits', label: t.tabs.circuits},
     {id: 'blitz', label: t.tabs.blitz},
+    {id: 'duel', label: t.tabs.duel},
   ];
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-labelledby="profile-modal-title"
     >
-      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-slate-300 bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-4">
-          <h2 id="profile-modal-title" className="text-lg font-bold text-slate-900">
+          <h2 id="profile-modal-title" className="font-display text-lg font-bold text-slate-900">
             {t.profile.modalTitle}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 cursor-pointer"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -119,12 +120,12 @@ export function ProfileModal({
                 {t.common.level} <span className="font-mono-tabular font-bold text-slate-900">{levelInfo.level}</span> ·{' '}
                 {t.ranks[levelInfo.rankIndex]}
               </p>
-              <p className="font-mono-tabular text-sm font-bold text-[#2563EB]">{active.xp} XP</p>
+              <p className="font-mono-tabular text-sm font-bold text-[#1D4ED8]">{active.xp} XP</p>
             </div>
           </div>
           <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
             <div
-              className="h-full bg-[#2563EB] transition-all duration-200"
+              className="h-full bg-[#EA580C] transition-all duration-200"
               style={{width: `${levelInfo.progressPct}%`}}
             />
           </div>
@@ -135,7 +136,7 @@ export function ProfileModal({
           <h3 className="text-sm font-semibold text-slate-900">{t.profile.masteryTitle}</h3>
           <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {moduleEntries.map((m) => {
-              const stat = active.modules[m.id];
+              const stat = active.modules[m.id] ?? {solved: 0, attempts: 0};
               const pct = Math.min(100, stat.solved * 10);
               return (
                 <div key={m.id} className="rounded-lg border border-slate-200 p-3">
@@ -146,7 +147,7 @@ export function ProfileModal({
                     </span>
                   </div>
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full bg-[#059669]" style={{width: `${pct}%`}} />
+                    <div className="h-full bg-[#047857]" style={{width: `${pct}%`}} />
                   </div>
                 </div>
               );

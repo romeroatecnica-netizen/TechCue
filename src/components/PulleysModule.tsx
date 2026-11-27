@@ -1,6 +1,11 @@
 import {ArrowDown, ArrowUp, CheckCircle2, RotateCcw, XCircle} from 'lucide-react';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import type {TranslationDict} from '../i18n/types';
+import {
+  createFreshSeedCode,
+  generatePulleyChallenge,
+  type GeneratedPulleyChallenge,
+} from '../utils/challengeEngine';
 import {computePulleyMetrics, type PulleyRigType} from '../utils/physics';
 import {playClick, playError, playSuccess} from '../utils/sound';
 
@@ -9,33 +14,20 @@ interface PulleysModuleProps {
   onAwardXp: (xp: number) => void;
 }
 
-interface PulleyChallenge {
-  id: string;
-  loadKg: number;
-  maxEffortN: number;
-  requireDownwardPull: boolean;
-  exactMa?: number;
-}
-
-const PULLEY_CHALLENGES: PulleyChallenge[] = [
-  {id: 'p1', loadKg: 40, maxEffortN: 200, requireDownwardPull: false, exactMa: 2},
-  {id: 'p2', loadKg: 60, maxEffortN: 300, requireDownwardPull: true},
-  {id: 'p3', loadKg: 80, maxEffortN: 200, requireDownwardPull: true},
-  {id: 'p4', loadKg: 50, maxEffortN: 500, requireDownwardPull: true, exactMa: 1},
-];
-
 export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
   const [mode, setMode] = useState<'lab' | 'challenge'>('lab');
   const [rigType, setRigType] = useState<PulleyRigType>('block2');
   const [loadKg, setLoadKg] = useState(40);
   const [isLifted, setIsLifted] = useState(false);
-  const [liftProgress, setLiftProgress] = useState(0); // 0 to 1
+  const [liftProgress, setLiftProgress] = useState(0);
   const progressRef = useRef(0);
 
-  const [challengeIdx, setChallengeIdx] = useState(0);
+  const [challengeCount, setChallengeCount] = useState(1);
+  const [activeChallenge, setActiveChallenge] = useState<GeneratedPulleyChallenge>(() =>
+    generatePulleyChallenge(createFreshSeedCode())
+  );
   const [challengeFeedback, setChallengeFeedback] = useState<'idle' | 'ok' | 'err'>('idle');
 
-  const activeChallenge = PULLEY_CHALLENGES[challengeIdx];
   const effectiveLoadKg = mode === 'challenge' ? activeChallenge.loadKg : loadKg;
   const maxLiftMeters = 2.0;
 
@@ -98,19 +90,19 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
 
   const handleNextChallenge = () => {
     playClick();
-    setChallengeIdx((prev) => (prev + 1) % PULLEY_CHALLENGES.length);
+    setActiveChallenge(generatePulleyChallenge(createFreshSeedCode()));
+    setChallengeCount((c) => c + 1);
     setChallengeFeedback('idle');
     setIsLifted(false);
   };
 
-  // Visual coordinates
   const loadDropPx = 64 * (1 - liftProgress);
   const wheelRotDeg = liftProgress * 360 * metrics.mechanicalAdvantage;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-      {/* Left / Top Zone: Animated SVG Pulley Stage */}
-      <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-7">
+      {/* Left / Top Zone: Dark Instrument SVG Stage */}
+      <div className="flex flex-col justify-between rounded-xl border border-slate-300 bg-white p-4 sm:p-5 lg:col-span-7">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
           <div className="inline-flex rounded-lg bg-slate-100 p-1">
             <button
@@ -121,9 +113,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
                 setChallengeFeedback('idle');
               }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-                mode === 'lab'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                mode === 'lab' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               {t.pulleys.modeLab}
@@ -138,7 +128,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
               }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                 mode === 'challenge'
-                  ? 'bg-white text-slate-900 shadow-xs'
+                  ? 'bg-slate-900 text-white'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -152,7 +142,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
               playClick();
               setIsLifted((v) => !v);
             }}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 text-xs font-semibold text-white hover:bg-blue-700 cursor-pointer whitespace-nowrap"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#EA580C] px-3.5 text-xs font-semibold text-white hover:bg-orange-700 cursor-pointer whitespace-nowrap"
           >
             {isLifted ? (
               <>
@@ -168,44 +158,33 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
           </button>
         </div>
 
-        <div className="blueprint-grid flex min-h-[300px] items-center justify-center rounded-xl border border-slate-200 p-2">
+        <div className="drafting-stage flex min-h-[300px] items-center justify-center rounded-xl border border-slate-800 p-2">
           <svg viewBox="0 0 420 290" className="h-[280px] w-full select-none" role="img" aria-label={t.tabs.pulleys}>
-            {/* Overhead structural beam */}
-            <rect x={40} y={14} width={340} height={14} rx={3} fill="#334155" />
+            <rect x={40} y={14} width={340} height={14} rx={3} fill="#475569" />
 
             {rigType === 'fixed' && (
               <g>
-                {/* Ceiling bracket */}
-                <line x1={200} y1={28} x2={200} y2={68} stroke="#475569" strokeWidth={4} />
-                {/* Ropes */}
-                <line x1={174} y1={68} x2={174} y2={155 + loadDropPx} stroke="#0F172A" strokeWidth={3} />
-                <line x1={226} y1={68} x2={226} y2={175 + liftProgress * 55} stroke="#2563EB" strokeWidth={3} />
-                {/* Fixed pulley wheel */}
+                <line x1={200} y1={28} x2={200} y2={68} stroke="#94A3B8" strokeWidth={4} />
+                <line x1={174} y1={68} x2={174} y2={155 + loadDropPx} stroke="#CBD5E1" strokeWidth={3} />
+                <line x1={226} y1={68} x2={226} y2={175 + liftProgress * 55} stroke="#38BDF8" strokeWidth={3} />
                 <PulleyWheel cx={200} cy={68} r={26} rot={wheelRotDeg} />
-                {/* Load block */}
                 <LoadBlock x={144} y={155 + loadDropPx} kg={effectiveLoadKg} />
-                {/* Pull vector */}
                 <PullArrow x={226} y={175 + liftProgress * 55} dir="down" effortN={metrics.effortNewtons} />
               </g>
             )}
 
             {rigType === 'movable' && (
               <g>
-                {/* Anchor on left ceiling */}
-                <circle cx={154} cy={28} r={4} fill="#0F172A" />
-                {/* Left fixed rope */}
-                <line x1={154} y1={28} x2={154} y2={125 + loadDropPx} stroke="#0F172A" strokeWidth={3} />
-                {/* Right upward pull rope */}
-                <line x1={206} y1={125 + loadDropPx} x2={206} y2={58} stroke="#2563EB" strokeWidth={3} />
-                {/* Movable pulley */}
+                <circle cx={154} cy={28} r={4} fill="#F8FAFC" />
+                <line x1={154} y1={28} x2={154} y2={125 + loadDropPx} stroke="#CBD5E1" strokeWidth={3} />
+                <line x1={206} y1={125 + loadDropPx} x2={206} y2={58} stroke="#38BDF8" strokeWidth={3} />
                 <PulleyWheel cx={180} cy={125 + loadDropPx} r={26} rot={-wheelRotDeg} />
-                {/* Load attached under movable pulley */}
                 <line
                   x1={180}
                   y1={125 + loadDropPx}
                   x2={180}
                   y2={170 + loadDropPx}
-                  stroke="#475569"
+                  stroke="#94A3B8"
                   strokeWidth={4}
                 />
                 <LoadBlock x={150} y={170 + loadDropPx} kg={effectiveLoadKg} />
@@ -215,21 +194,18 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
 
             {rigType === 'block2' && (
               <g>
-                {/* Upper fixed pulley */}
-                <line x1={200} y1={28} x2={200} y2={64} stroke="#475569" strokeWidth={4} />
-                {/* Lower movable pulley */}
+                <line x1={200} y1={28} x2={200} y2={64} stroke="#94A3B8" strokeWidth={4} />
                 <line
                   x1={174}
                   y1={135 + loadDropPx}
                   x2={174}
                   y2={175 + loadDropPx}
-                  stroke="#475569"
+                  stroke="#94A3B8"
                   strokeWidth={4}
                 />
-                {/* Rope segments: ceiling -> movable -> fixed -> pull down */}
-                <line x1={150} y1={28} x2={150} y2={135 + loadDropPx} stroke="#0F172A" strokeWidth={3} />
-                <line x1={198} y1={135 + loadDropPx} x2={178} y2={64} stroke="#0F172A" strokeWidth={3} />
-                <line x1={222} y1={64} x2={252} y2={180 + liftProgress * 45} stroke="#2563EB" strokeWidth={3} />
+                <line x1={150} y1={28} x2={150} y2={135 + loadDropPx} stroke="#CBD5E1" strokeWidth={3} />
+                <line x1={198} y1={135 + loadDropPx} x2={178} y2={64} stroke="#CBD5E1" strokeWidth={3} />
+                <line x1={222} y1={64} x2={252} y2={180 + liftProgress * 45} stroke="#38BDF8" strokeWidth={3} />
 
                 <PulleyWheel cx={200} cy={64} r={22} rot={wheelRotDeg} />
                 <PulleyWheel cx={174} cy={135 + loadDropPx} r={24} rot={-wheelRotDeg * 0.5} />
@@ -240,15 +216,12 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
 
             {rigType === 'compound4' && (
               <g>
-                {/* Upper twin block */}
-                <line x1={190} y1={28} x2={190} y2={62} stroke="#475569" strokeWidth={4} />
-                {/* 4 supporting vertical ropes */}
-                <line x1={146} y1={28} x2={146} y2={135 + loadDropPx} stroke="#0F172A" strokeWidth={2.5} />
-                <line x1={168} y1={62} x2={168} y2={135 + loadDropPx} stroke="#0F172A" strokeWidth={2.5} />
-                <line x1={190} y1={62} x2={190} y2={135 + loadDropPx} stroke="#0F172A" strokeWidth={2.5} />
-                <line x1={212} y1={62} x2={212} y2={135 + loadDropPx} stroke="#0F172A" strokeWidth={2.5} />
-                {/* Pull rope */}
-                <line x1={234} y1={62} x2={268} y2={175 + liftProgress * 55} stroke="#2563EB" strokeWidth={3} />
+                <line x1={190} y1={28} x2={190} y2={62} stroke="#94A3B8" strokeWidth={4} />
+                <line x1={146} y1={28} x2={146} y2={135 + loadDropPx} stroke="#CBD5E1" strokeWidth={2.5} />
+                <line x1={168} y1={62} x2={168} y2={135 + loadDropPx} stroke="#CBD5E1" strokeWidth={2.5} />
+                <line x1={190} y1={62} x2={190} y2={135 + loadDropPx} stroke="#CBD5E1" strokeWidth={2.5} />
+                <line x1={212} y1={62} x2={212} y2={135 + loadDropPx} stroke="#CBD5E1" strokeWidth={2.5} />
+                <line x1={234} y1={62} x2={268} y2={175 + liftProgress * 55} stroke="#38BDF8" strokeWidth={3} />
 
                 <PulleyWheel cx={190} cy={62} r={24} rot={wheelRotDeg} />
                 <PulleyWheel cx={179} cy={135 + loadDropPx} r={24} rot={-wheelRotDeg * 0.5} />
@@ -257,7 +230,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
                   y1={135 + loadDropPx}
                   x2={179}
                   y2={175 + loadDropPx}
-                  stroke="#475569"
+                  stroke="#94A3B8"
                   strokeWidth={4}
                 />
                 <LoadBlock x={149} y={175 + loadDropPx} kg={effectiveLoadKg} />
@@ -275,11 +248,11 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
           </div>
           <div>
             <p className="text-[11px] font-medium text-slate-500">{t.pulleys.effortForce}</p>
-            <p className="font-mono-tabular text-sm font-bold text-[#2563EB]">{metrics.effortNewtons} N</p>
+            <p className="font-mono-tabular text-sm font-bold text-[#1D4ED8]">{metrics.effortNewtons} N</p>
           </div>
           <div>
             <p className="text-[11px] font-medium text-slate-500">{t.pulleys.mechAdv}</p>
-            <p className="font-mono-tabular text-sm font-bold text-[#059669]">
+            <p className="font-mono-tabular text-sm font-bold text-[#047857]">
               {metrics.mechanicalAdvantage}x ({metrics.supportingRopes})
             </p>
           </div>
@@ -293,32 +266,31 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
       </div>
 
       {/* Right / Bottom Zone: Controls & Challenges */}
-      <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 lg:col-span-5">
+      <div className="flex flex-col justify-between rounded-xl border border-slate-300 bg-white p-5 lg:col-span-5">
         <div>
           <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
             <span>{mode === 'lab' ? t.pulleys.rigType : t.pulleys.modeChallenge}</span>
             {mode === 'challenge' && (
               <span className="font-mono-tabular">
-                {challengeIdx + 1} / {PULLEY_CHALLENGES.length}
+                #{challengeCount} · {activeChallenge.seed}
               </span>
             )}
           </div>
 
           {mode === 'challenge' && (
-            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3.5">
+            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/70 p-3.5">
               <p className="text-xs font-medium text-slate-700">{t.pulleys.challengePrompt}</p>
               <p className="mt-1.5 font-mono-tabular text-sm font-bold text-slate-900">
                 {t.pulleys.loadWeight}: {activeChallenge.loadKg * 10} N · {t.pulleys.effortForce} ≤{' '}
                 {activeChallenge.maxEffortN} N
               </p>
-              <p className="mt-1 text-xs font-semibold text-[#2563EB]">
+              <p className="mt-1 text-xs font-semibold text-[#1D4ED8]">
                 {activeChallenge.requireDownwardPull ? t.pulleys.directionChange : t.pulleys.sameDirection}
                 {activeChallenge.exactMa ? ` · MA = ${activeChallenge.exactMa}x` : ''}
               </p>
             </div>
           )}
 
-          {/* Rig Selector */}
           <div className="mt-4 grid grid-cols-1 gap-2">
             {rigOptions.map((opt) => (
               <button
@@ -327,7 +299,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
                 onClick={() => handleSelectRig(opt.id)}
                 className={`flex h-11 items-center justify-between rounded-lg border px-3.5 text-xs font-semibold transition-colors cursor-pointer ${
                   rigType === opt.id
-                    ? 'border-[#2563EB] bg-blue-50 text-[#2563EB]'
+                    ? 'border-[#1D4ED8] bg-blue-50 text-[#1D4ED8]'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
@@ -345,12 +317,11 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
             ))}
           </div>
 
-          {/* Load Mass Slider (Lab mode) */}
           {mode === 'lab' && (
             <div className="mt-5 rounded-lg border border-slate-200 p-3.5">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-800">
                 <label htmlFor="pulley-load-slider">{t.pulleys.loadWeight}</label>
-                <span className="font-mono-tabular text-[#2563EB]">
+                <span className="font-mono-tabular text-[#1D4ED8]">
                   {loadKg} kg ({loadKg * 10} N)
                 </span>
               </div>
@@ -362,7 +333,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
                 step={10}
                 value={loadKg}
                 onChange={(e) => setLoadKg(Number(e.target.value))}
-                className="mt-2.5 w-full accent-[#2563EB] cursor-pointer"
+                className="mt-2.5 w-full accent-[#1D4ED8] cursor-pointer"
               />
             </div>
           )}
@@ -372,7 +343,8 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
           {mode === 'lab' ? (
             <p className="text-xs leading-relaxed text-slate-600">
               {metrics.changesDirection ? t.pulleys.directionChange : t.pulleys.sameDirection} ·{' '}
-              {t.pulleys.supportingRopes}: <span className="font-mono-tabular font-bold">{metrics.supportingRopes}</span>
+              {t.pulleys.supportingRopes}:{' '}
+              <span className="font-mono-tabular font-bold">{metrics.supportingRopes}</span>
             </p>
           ) : (
             <div className="space-y-3">
@@ -380,7 +352,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
                 <div
                   className={`flex items-start gap-2.5 rounded-lg border p-3 text-xs font-medium ${
                     challengeFeedback === 'ok'
-                      ? 'border-emerald-200 bg-emerald-50 text-[#059669]'
+                      ? 'border-emerald-200 bg-emerald-50 text-[#047857]'
                       : 'border-red-200 bg-red-50 text-[#DC2626]'
                   }`}
                 >
@@ -396,14 +368,14 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
                 <button
                   type="button"
                   onClick={handleVerifyChallenge}
-                  className="h-11 flex-1 rounded-lg bg-[#2563EB] px-4 text-xs font-semibold text-white hover:bg-blue-700 cursor-pointer"
+                  className="h-11 flex-1 rounded-lg bg-[#1D4ED8] px-4 text-xs font-semibold text-white hover:bg-blue-800 cursor-pointer"
                 >
                   {t.pulleys.pickBestRig}
                 </button>
                 <button
                   type="button"
                   onClick={handleNextChallenge}
-                  className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
                 >
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                   {t.common.nextChallenge}
@@ -421,11 +393,11 @@ function PulleyWheel({cx, cy, r, rot}: {cx: number; cy: number; r: number; rot: 
   return (
     <g transform={`translate(${cx}, ${cy})`}>
       <g transform={`rotate(${rot.toFixed(1)})`}>
-        <circle cx={0} cy={0} r={r} fill="#FEF3C7" stroke="#D97706" strokeWidth={3} />
-        <line x1={-r + 4} y1={0} x2={r - 4} y2={0} stroke="#D97706" strokeWidth={2} />
-        <line x1={0} y1={-r + 4} x2={0} y2={r - 4} stroke="#D97706" strokeWidth={2} />
+        <circle cx={0} cy={0} r={r} fill="#78350F" stroke="#F59E0B" strokeWidth={3} />
+        <line x1={-r + 4} y1={0} x2={r - 4} y2={0} stroke="#F59E0B" strokeWidth={2} />
+        <line x1={0} y1={-r + 4} x2={0} y2={r - 4} stroke="#F59E0B" strokeWidth={2} />
       </g>
-      <circle cx={0} cy={0} r={5} fill="#0F172A" />
+      <circle cx={0} cy={0} r={5} fill="#F8FAFC" />
     </g>
   );
 }
@@ -433,7 +405,7 @@ function PulleyWheel({cx, cy, r, rot}: {cx: number; cy: number; r: number; rot: 
 function LoadBlock({x, y, kg}: {x: number; y: number; kg: number}) {
   return (
     <g transform={`translate(${x}, ${y})`}>
-      <rect x={0} y={0} width={60} height={42} rx={6} fill="#1E293B" stroke="#0F172A" strokeWidth={2} />
+      <rect x={0} y={0} width={60} height={42} rx={6} fill="#1E293B" stroke="#94A3B8" strokeWidth={2} />
       <text x={30} y={20} textAnchor="middle" fontSize="11" fontWeight="700" fill="#FFFFFF">
         {kg} kg
       </text>
@@ -458,18 +430,18 @@ function PullArrow({
   const arrowY = dir === 'down' ? y + 28 : y - 28;
   return (
     <g>
-      <line x1={x} y1={y} x2={x} y2={arrowY} stroke="#2563EB" strokeWidth={3.5} />
+      <line x1={x} y1={y} x2={x} y2={arrowY} stroke="#38BDF8" strokeWidth={3.5} />
       {dir === 'down' ? (
-        <polygon points={`${x - 6},${arrowY - 2} ${x + 6},${arrowY - 2} ${x},${arrowY + 8}`} fill="#2563EB" />
+        <polygon points={`${x - 6},${arrowY - 2} ${x + 6},${arrowY - 2} ${x},${arrowY + 8}`} fill="#38BDF8" />
       ) : (
-        <polygon points={`${x - 6},${arrowY + 2} ${x + 6},${arrowY + 2} ${x},${arrowY - 8}`} fill="#2563EB" />
+        <polygon points={`${x - 6},${arrowY + 2} ${x + 6},${arrowY + 2} ${x},${arrowY - 8}`} fill="#38BDF8" />
       )}
       <text
         x={x + 12}
         y={dir === 'down' ? arrowY + 4 : arrowY + 2}
         fontSize="11"
         fontWeight="700"
-        fill="#2563EB"
+        fill="#38BDF8"
       >
         F = {effortN} N
       </text>

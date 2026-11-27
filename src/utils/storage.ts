@@ -56,6 +56,7 @@ export function createDefaultProfile(name = 'Engineer 1'): UserProfile {
       pulleys: {solved: 0, attempts: 0},
       circuits: {solved: 0, attempts: 0},
       blitz: {solved: 0, attempts: 0},
+      duel: {solved: 0, attempts: 0},
     },
     createdAt: new Date().toISOString(),
   };
@@ -86,9 +87,16 @@ export function loadProfileStore(): ProfileStore {
     }
     const parsed = JSON.parse(raw) as unknown;
     if (isValidProfileStore(parsed)) {
-      const updatedProfiles = parsed.profiles.map((p) =>
-        p.id === parsed.activeProfileId ? refreshDailyStreak(p) : p
-      );
+      const updatedProfiles = parsed.profiles.map((p) => {
+        const normalized: UserProfile = {
+          ...p,
+          modules: {
+            ...p.modules,
+            duel: p.modules.duel ?? {solved: 0, attempts: 0},
+          },
+        };
+        return normalized.id === parsed.activeProfileId ? refreshDailyStreak(normalized) : normalized;
+      });
       const store: ProfileStore = {...parsed, profiles: updatedProfiles};
       saveProfileStore(store);
       return store;

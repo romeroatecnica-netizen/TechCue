@@ -9,12 +9,12 @@ interface FooterProps {
 
 export function Footer({t, lang, onChangeLang}: FooterProps) {
   return (
-    <footer className="border-t border-slate-200 bg-white py-8">
+    <footer className="border-t border-slate-800 bg-[#0F172A] py-8 text-slate-300">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 sm:px-6 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm font-bold text-slate-900">{t.footer.copyright}</p>
-          <p className="mt-1 text-xs text-slate-500">
-            <a href={`${CANONICAL_ORIGIN}/`} className="hover:underline">
+          <p className="font-display text-sm font-bold text-white">{t.footer.copyright}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            <a href={`${CANONICAL_ORIGIN}/`} className="hover:text-white hover:underline">
               {t.footer.canonicalNote}
             </a>
             <span aria-hidden="true"> · </span>
@@ -29,7 +29,7 @@ export function Footer({t, lang, onChangeLang}: FooterProps) {
               type="button"
               onClick={() => onChangeLang(opt.code)}
               className={`hover:underline cursor-pointer ${
-                lang === opt.code ? 'font-bold text-[#2563EB]' : 'text-slate-600'
+                lang === opt.code ? 'font-bold text-[#FB923C]' : 'text-slate-400 hover:text-white'
               }`}
             >
               {opt.nativeName}

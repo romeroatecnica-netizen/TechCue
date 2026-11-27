@@ -1,6 +1,6 @@
 import type {LocaleCode} from '../config/seo';
 
-export type ModuleId = 'gears' | 'pulleys' | 'circuits' | 'blitz';
+export type ModuleId = 'gears' | 'pulleys' | 'circuits' | 'blitz' | 'duel';
 
 export interface FaqEntry {
   q: string;
@@ -52,6 +52,32 @@ export interface TranslationDict {
     pulleys: string;
     circuits: string;
     blitz: string;
+    duel: string;
+  };
+  duel: {
+    heroBtn: string;
+    title: string;
+    subtitle: string;
+    seedLabel: string;
+    newSeedBtn: string;
+    playAndChallenge: string;
+    copyOpenLink: string;
+    copyScoreLink: string;
+    copied: string;
+    shareNative: string;
+    incomingBanner: string;
+    beatScorePrompt: string;
+    pointsUnit: string;
+    secondsUnit: string;
+    roundLabel: string;
+    yourResult: string;
+    challengerResult: string;
+    winResult: string;
+    tieResult: string;
+    loseResult: string;
+    rematchBtn: string;
+    exitDuel: string;
+    accuracyLabel: string;
   };
   ranks: [string, string, string, string, string];
   common: {
