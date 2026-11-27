@@ -1,14 +1,50 @@
 import type {
   CircuitBoardId,
   GearSpec,
-  PulleyRigType,
   RotationDir,
   SwitchStateMap,
 } from './physics';
 
+export type DifficultyLevel = 'easy' | 'medium' | 'hard';
+
+const DIFFICULTY_STORAGE_KEY = 'techcue_difficulty_v1';
+
+export function isValidDifficulty(val: unknown): val is DifficultyLevel {
+  return val === 'easy' || val === 'medium' || val === 'hard';
+}
+
+export function loadDifficultyPreference(): DifficultyLevel {
+  try {
+    const raw = localStorage.getItem(DIFFICULTY_STORAGE_KEY);
+    if (isValidDifficulty(raw)) return raw;
+  } catch {
+    // Ignore storage errors
+  }
+  return 'medium';
+}
+
+export function saveDifficultyPreference(level: DifficultyLevel): void {
+  try {
+    localStorage.setItem(DIFFICULTY_STORAGE_KEY, level);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function getDifficultyXpMultiplier(level: DifficultyLevel): number {
+  switch (level) {
+    case 'easy':
+      return 1;
+    case 'medium':
+      return 1.35;
+    case 'hard':
+      return 1.75;
+  }
+}
+
 /**
- * Deterministic Mulberry32 PRNG so any challenge seed produces identical puzzles
- * on both the challenger's and the opponent's browsers with zero backend.
+ * Deterministic Mulberry32 PRNG so any challenge seed + difficulty produces identical
+ * puzzles on both the challenger's and the opponent's browsers with zero backend.
  */
 export function hashSeedString(seed: string): number {
   let h = 2166136261 >>> 0;
@@ -47,70 +83,124 @@ function pick<T>(rng: () => number, items: readonly T[]): T {
 
 export interface GeneratedGearQuiz {
   seed: string;
+  difficulty: DifficultyLevel;
   gears: GearSpec[];
   motorDir: RotationDir;
   motorRpm: number;
 }
 
-const QUIZ_TOOTH_POOL = [8, 12, 16, 20, 24, 32] as const;
+export function generateGearQuiz(
+  seed: string,
+  difficulty: DifficultyLevel = 'medium'
+): GeneratedGearQuiz {
+  const rng = createSeededRng(`gear-quiz:${difficulty}:${seed}`);
+  const toothPool =
+    difficulty === 'easy'
+      ? ([8, 12, 16, 24] as const)
+      : difficulty === 'medium'
+        ? ([8, 12, 16, 20, 24, 32] as const)
+        : ([8, 10, 12, 16, 18, 20, 24, 32] as const);
 
-export function generateGearQuiz(seed: string): GeneratedGearQuiz {
-  const rng = createSeededRng(`gear-quiz:${seed}`);
-  const count = pick(rng, [2, 3, 3, 4] as const);
+  const count =
+    difficulty === 'easy'
+      ? 2
+      : difficulty === 'medium'
+        ? pick(rng, [2, 3, 3] as const)
+        : pick(rng, [3, 4, 4, 5] as const);
+
   const gears: GearSpec[] = [];
   for (let i = 0; i < count; i++) {
     gears.push({
       id: `gq_${i}`,
-      teeth: pick(rng, QUIZ_TOOTH_POOL),
+      teeth: pick(rng, toothPool),
     });
   }
-  // Ensure variety between first and last gear on most rounds
+
   if (gears[0].teeth === gears[gears.length - 1].teeth && rng() > 0.25) {
-    const alts = QUIZ_TOOTH_POOL.filter((z) => z !== gears[0].teeth);
+    const alts = toothPool.filter((z) => z !== gears[0].teeth);
     gears[gears.length - 1].teeth = pick(rng, alts);
   }
-  const motorDir: RotationDir = rng() > 0.5 ? 'cw' : 'ccw';
+
+  const motorDir: RotationDir =
+    difficulty === 'easy' ? 'cw' : rng() > 0.5 ? 'cw' : 'ccw';
   const motorRpm = pick(rng, [30, 40, 45, 60, 75] as const);
-  return {seed, gears, motorDir, motorRpm};
+  return {seed, difficulty, gears, motorDir, motorRpm};
 }
 
 export interface GeneratedGearMission {
   seed: string;
+  difficulty: DifficultyLevel;
   targetDir: RotationDir;
   targetRatio: number;
   motorDir: RotationDir;
 }
 
-const VALID_BUILDER_RATIOS = [0.5, 1, 1.5, 2, 2.5, 3, 4] as const;
-
-export function generateGearBuilderMission(seed: string): GeneratedGearMission {
-  const rng = createSeededRng(`gear-build:${seed}`);
+export function generateGearBuilderMission(
+  seed: string,
+  difficulty: DifficultyLevel = 'medium'
+): GeneratedGearMission {
+  const rng = createSeededRng(`gear-build:${difficulty}:${seed}`);
   const targetDir: RotationDir = rng() > 0.5 ? 'cw' : 'ccw';
-  const motorDir: RotationDir = rng() > 0.5 ? 'cw' : 'ccw';
-  const targetRatio = pick(rng, VALID_BUILDER_RATIOS);
-  return {seed, targetDir, targetRatio, motorDir};
+  const motorDir: RotationDir =
+    difficulty === 'easy' ? 'cw' : rng() > 0.5 ? 'cw' : 'ccw';
+
+  const ratioPool =
+    difficulty === 'easy'
+      ? ([0.5, 1, 2] as const)
+      : difficulty === 'medium'
+        ? ([0.5, 1, 1.5, 2, 3] as const)
+        : ([0.38, 0.5, 0.75, 1.33, 1.5, 2.5, 2.67, 3, 4] as const);
+
+  // Pick achievable exact ratios using {8,12,16,20,24,32}
+  const cleanHardPool = [0.5, 0.75, 1.5, 2, 2.5, 3, 4] as const;
+  const targetRatio =
+    difficulty === 'hard' ? pick(rng, cleanHardPool) : pick(rng, ratioPool);
+
+  return {seed, difficulty, targetDir, targetRatio, motorDir};
 }
 
 /* ==================== PROCEDURAL PULLEYS ==================== */
 
 export interface GeneratedPulleyChallenge {
   seed: string;
+  difficulty: DifficultyLevel;
   loadKg: number;
   maxEffortN: number;
   requireDownwardPull: boolean;
   exactMa?: number;
 }
 
-export function generatePulleyChallenge(seed: string): GeneratedPulleyChallenge {
-  const rng = createSeededRng(`pulley:${seed}`);
+export function generatePulleyChallenge(
+  seed: string,
+  difficulty: DifficultyLevel = 'medium'
+): GeneratedPulleyChallenge {
+  const rng = createSeededRng(`pulley:${difficulty}:${seed}`);
+
+  if (difficulty === 'easy') {
+    const template = pick(rng, ['fixed', 'movable', 'block2'] as const);
+    const loadKg = pick(rng, [20, 40, 60] as const);
+    const loadN = loadKg * 10;
+    if (template === 'fixed') {
+      return {seed, difficulty, loadKg, maxEffortN: loadN, requireDownwardPull: true, exactMa: 1};
+    }
+    if (template === 'movable') {
+      return {seed, difficulty, loadKg, maxEffortN: loadN / 2, requireDownwardPull: false, exactMa: 2};
+    }
+    return {seed, difficulty, loadKg, maxEffortN: loadN / 2, requireDownwardPull: true};
+  }
+
   const template = pick(rng, ['fixed', 'movable', 'block2', 'compound4'] as const);
-  const loadKg = pick(rng, [20, 40, 60, 80, 100] as const);
+  const loadKg =
+    difficulty === 'hard'
+      ? pick(rng, [30, 50, 70, 90, 120] as const)
+      : pick(rng, [20, 40, 60, 80, 100] as const);
   const loadN = loadKg * 10;
 
   switch (template) {
     case 'fixed':
       return {
         seed,
+        difficulty,
         loadKg,
         maxEffortN: loadN,
         requireDownwardPull: true,
@@ -119,6 +209,7 @@ export function generatePulleyChallenge(seed: string): GeneratedPulleyChallenge 
     case 'movable':
       return {
         seed,
+        difficulty,
         loadKg,
         maxEffortN: loadN / 2,
         requireDownwardPull: false,
@@ -127,16 +218,20 @@ export function generatePulleyChallenge(seed: string): GeneratedPulleyChallenge 
     case 'block2':
       return {
         seed,
+        difficulty,
         loadKg,
         maxEffortN: loadN / 2,
         requireDownwardPull: true,
+        exactMa: difficulty === 'hard' ? 2 : undefined,
       };
     case 'compound4':
       return {
         seed,
+        difficulty,
         loadKg,
         maxEffortN: loadN / 4,
         requireDownwardPull: true,
+        exactMa: difficulty === 'hard' ? 4 : undefined,
       };
   }
 }
@@ -145,6 +240,7 @@ export function generatePulleyChallenge(seed: string): GeneratedPulleyChallenge 
 
 export interface GeneratedCircuitPuzzle {
   seed: string;
+  difficulty: DifficultyLevel;
   boardId: CircuitBoardId;
   initialSwitches: SwitchStateMap;
   targetL1: boolean;
@@ -153,14 +249,26 @@ export interface GeneratedCircuitPuzzle {
   requireSafe: boolean;
 }
 
-export function generateCircuitPuzzle(seed: string): GeneratedCircuitPuzzle {
-  const rng = createSeededRng(`circuit:${seed}`);
-  const boardId = pick(rng, ['series', 'parallel', 'mixed', 'shortGuard'] as const);
+export function generateCircuitPuzzle(
+  seed: string,
+  difficulty: DifficultyLevel = 'medium'
+): GeneratedCircuitPuzzle {
+  const rng = createSeededRng(`circuit:${difficulty}:${seed}`);
+
+  const boardPool: readonly CircuitBoardId[] =
+    difficulty === 'easy'
+      ? (['series', 'parallel'] as const)
+      : difficulty === 'medium'
+        ? (['series', 'parallel', 'mixed'] as const)
+        : (['parallel', 'mixed', 'shortGuard'] as const);
+
+  const boardId = pick(rng, boardPool);
 
   if (boardId === 'series') {
-    const targetOn = rng() > 0.25;
+    const targetOn = difficulty === 'easy' ? true : rng() > 0.25;
     return {
       seed,
+      difficulty,
       boardId,
       initialSwitches: targetOn
         ? {S1: rng() > 0.5, S2: false, S3: false}
@@ -180,6 +288,7 @@ export function generateCircuitPuzzle(seed: string): GeneratedCircuitPuzzle {
     ] as const);
     return {
       seed,
+      difficulty,
       boardId,
       initialSwitches: {S1: false, S2: !combo.l1, S3: !combo.l2},
       targetL1: combo.l1,
@@ -197,8 +306,13 @@ export function generateCircuitPuzzle(seed: string): GeneratedCircuitPuzzle {
     ] as const);
     return {
       seed,
+      difficulty,
       boardId,
-      initialSwitches: {S1: true, S2: !combo.l1, S3: !combo.motor},
+      initialSwitches: {
+        S1: difficulty === 'hard' ? false : true,
+        S2: !combo.l1,
+        S3: !combo.motor,
+      },
       targetL1: combo.l1,
       targetL2: false,
       targetMotor: combo.motor,
@@ -209,6 +323,7 @@ export function generateCircuitPuzzle(seed: string): GeneratedCircuitPuzzle {
   // shortGuard
   return {
     seed,
+    difficulty,
     boardId: 'shortGuard',
     initialSwitches: {S1: true, S2: false, S3: true},
     targetL1: true,
@@ -250,26 +365,36 @@ export interface DynamicQuestion {
   options: Array<{key: string; labelKey: DynamicOptionLabelKey}>;
 }
 
-export function generateDynamicQuestionDeck(seed: string, count = 8): DynamicQuestion[] {
-  const rng = createSeededRng(`deck:${seed}`);
+export function generateDynamicQuestionDeck(
+  seed: string,
+  count = 8,
+  difficulty: DifficultyLevel = 'medium'
+): DynamicQuestion[] {
+  const rng = createSeededRng(`deck:${difficulty}:${seed}`);
   const categories: DynamicQuestionCategory[] = ['lever', 'gear', 'pulley', 'circuit'];
   const deck: DynamicQuestion[] = [];
 
   for (let i = 0; i < count; i++) {
-    // Rotate categories first, then randomize
     const category = i < 4 ? categories[i] : pick(rng, categories);
 
     if (category === 'lever') {
-      const leftDist = pick(rng, [1, 2, 3] as const);
-      const rightDist = pick(rng, [1, 2, 3] as const);
-      const leftN = pick(rng, [10, 15, 20, 25, 30, 40] as const);
-      // Mix balanced and unbalanced cases cleanly
+      const distPool = difficulty === 'easy' ? ([1, 2] as const) : ([1, 2, 3] as const);
+      const forcePool =
+        difficulty === 'easy'
+          ? ([10, 20, 30, 40] as const)
+          : difficulty === 'medium'
+            ? ([10, 15, 20, 25, 30, 40] as const)
+            : ([12, 15, 18, 24, 25, 30, 35, 45] as const);
+
+      const leftDist = pick(rng, distPool);
+      const rightDist = pick(rng, distPool);
+      const leftN = pick(rng, forcePool);
       const makeBalanced = rng() < 0.38;
       let rightN: number;
       if (makeBalanced && (leftN * leftDist) % rightDist === 0) {
         rightN = (leftN * leftDist) / rightDist;
       } else {
-        rightN = pick(rng, [10, 15, 20, 25, 30, 40, 45] as const);
+        rightN = pick(rng, forcePool);
       }
       const leftTorque = leftN * leftDist;
       const rightTorque = rightN * rightDist;
@@ -277,7 +402,7 @@ export function generateDynamicQuestionDeck(seed: string, count = 8): DynamicQue
         leftTorque === rightTorque ? 'balanced' : leftTorque > rightTorque ? 'left' : 'right';
 
       deck.push({
-        id: `${seed}_${i}`,
+        id: `${seed}_${difficulty}_${i}`,
         category: 'lever',
         leftN,
         leftDist,
@@ -294,12 +419,26 @@ export function generateDynamicQuestionDeck(seed: string, count = 8): DynamicQue
     }
 
     if (category === 'gear') {
-      const gearCount = pick(rng, [2, 3, 4] as const);
+      const gearCount =
+        difficulty === 'easy'
+          ? pick(rng, [2, 3] as const)
+          : difficulty === 'medium'
+            ? pick(rng, [2, 3, 4] as const)
+            : pick(rng, [3, 4, 5] as const);
+
       const gearTeeth: number[] = [];
       for (let g = 0; g < gearCount; g++) {
-        gearTeeth.push(pick(rng, [10, 12, 16, 20, 24] as const));
+        gearTeeth.push(
+          pick(
+            rng,
+            difficulty === 'hard'
+              ? ([8, 10, 12, 16, 18, 24] as const)
+              : ([10, 12, 16, 20, 24] as const)
+          )
+        );
       }
-      const motorDir: RotationDir = rng() > 0.5 ? 'cw' : 'ccw';
+      const motorDir: RotationDir =
+        difficulty === 'easy' ? 'cw' : rng() > 0.5 ? 'cw' : 'ccw';
       const flips = (gearCount - 1) % 2 === 1;
       const answerKey: RotationDir = flips
         ? motorDir === 'cw'
@@ -308,7 +447,7 @@ export function generateDynamicQuestionDeck(seed: string, count = 8): DynamicQue
         : motorDir;
 
       deck.push({
-        id: `${seed}_${i}`,
+        id: `${seed}_${difficulty}_${i}`,
         category: 'gear',
         gearTeeth,
         motorDir,
@@ -322,12 +461,20 @@ export function generateDynamicQuestionDeck(seed: string, count = 8): DynamicQue
     }
 
     if (category === 'pulley') {
-      const pulleyRopes = pick(rng, [1, 2, 4] as const);
-      const pulleyLoadN = pick(rng, [120, 200, 320, 400, 600] as const);
+      const pulleyRopes =
+        difficulty === 'easy'
+          ? pick(rng, [1, 2] as const)
+          : pick(rng, [1, 2, 4] as const);
+      const pulleyLoadN =
+        difficulty === 'easy'
+          ? pick(rng, [100, 200, 400] as const)
+          : difficulty === 'medium'
+            ? pick(rng, [120, 200, 320, 400, 600] as const)
+            : pick(rng, [180, 260, 360, 440, 520] as const);
       const answerKey = pulleyRopes === 1 ? 'full' : pulleyRopes === 2 ? 'half' : 'quarter';
 
       deck.push({
-        id: `${seed}_${i}`,
+        id: `${seed}_${difficulty}_${i}`,
         category: 'pulley',
         pulleyRopes,
         pulleyLoadN,
@@ -344,7 +491,7 @@ export function generateDynamicQuestionDeck(seed: string, count = 8): DynamicQue
     // circuit
     const circuitSeriesOpen = rng() > 0.45;
     deck.push({
-      id: `${seed}_${i}`,
+      id: `${seed}_${difficulty}_${i}`,
       category: 'circuit',
       circuitSeriesOpen,
       answerKey: circuitSeriesOpen ? 'allOff' : 'staysOn',
@@ -363,6 +510,7 @@ export function generateDynamicQuestionDeck(seed: string, count = 8): DynamicQue
 export interface DuelPayload {
   seed: string;
   rounds: number;
+  difficulty: DifficultyLevel;
   challengerName?: string;
   challengerScore?: number;
   challengerTimeSec?: number;
@@ -407,6 +555,7 @@ export function decodeDuelParam(token: string | null | undefined): DuelPayload |
     return {
       seed: obj.seed,
       rounds: Math.max(3, Math.min(10, Math.round(obj.rounds))),
+      difficulty: isValidDifficulty(obj.difficulty) ? obj.difficulty : 'medium',
       challengerName: typeof obj.challengerName === 'string' ? obj.challengerName.slice(0, 24) : undefined,
       challengerScore: typeof obj.challengerScore === 'number' ? Math.max(0, Math.round(obj.challengerScore)) : undefined,
       challengerTimeSec:

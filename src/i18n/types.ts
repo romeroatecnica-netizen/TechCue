@@ -54,6 +54,13 @@ export interface TranslationDict {
     blitz: string;
     duel: string;
   };
+  difficulty: {
+    label: string;
+    easy: string;
+    medium: string;
+    hard: string;
+    xpBonus: string;
+  };
   duel: {
     heroBtn: string;
     title: string;

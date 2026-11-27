@@ -4,6 +4,8 @@ import type {TranslationDict} from '../i18n/types';
 import {
   createFreshSeedCode,
   generateDynamicQuestionDeck,
+  getDifficultyXpMultiplier,
+  type DifficultyLevel,
   type DynamicQuestion,
 } from '../utils/challengeEngine';
 import {playClick, playError, playSuccess} from '../utils/sound';
@@ -11,22 +13,47 @@ import {DynamicQuestionSvg} from './DynamicQuestionSvg';
 
 interface BlitzModuleProps {
   t: TranslationDict;
+  difficulty: DifficultyLevel;
   bestBlitzStreak: number;
   onRecordBlitzResult: (xp: number, streak: number) => void;
 }
 
-export function BlitzModule({t, bestBlitzStreak, onRecordBlitzResult}: BlitzModuleProps) {
+function getBlitzSeconds(difficulty: DifficultyLevel): number {
+  switch (difficulty) {
+    case 'easy':
+      return 75;
+    case 'medium':
+      return 60;
+    case 'hard':
+      return 45;
+  }
+}
+
+export function BlitzModule({
+  t,
+  difficulty,
+  bestBlitzStreak,
+  onRecordBlitzResult,
+}: BlitzModuleProps) {
   const [timedMode, setTimedMode] = useState(false);
   const [isRunning, setIsRunning] = useState(true);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(() => getBlitzSeconds(difficulty));
   const [deck, setDeck] = useState<DynamicQuestion[]>(() =>
-    generateDynamicQuestionDeck(createFreshSeedCode(), 12)
+    generateDynamicQuestionDeck(createFreshSeedCode(), 12, difficulty)
   );
   const [deckIdx, setDeckIdx] = useState(0);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [roundDone, setRoundDone] = useState(false);
+
+  useEffect(() => {
+    setDeck(generateDynamicQuestionDeck(createFreshSeedCode(), 12, difficulty));
+    setDeckIdx(0);
+    setSelectedKey(null);
+    setRoundDone(false);
+    setTimeLeft(getBlitzSeconds(difficulty));
+  }, [difficulty]);
 
   const q = deck[deckIdx];
 
@@ -46,6 +73,7 @@ export function BlitzModule({t, bestBlitzStreak, onRecordBlitzResult}: BlitzModu
   }, [timedMode, isRunning, roundDone]);
 
   const multiplier = streak >= 6 ? 3 : streak >= 3 ? 2 : streak >= 1 ? 1.5 : 1;
+  const diffMult = getDifficultyXpMultiplier(difficulty);
 
   const getOptionLabel = (labelKey: DynamicQuestion['options'][number]['labelKey']) => {
     switch (labelKey) {
@@ -78,7 +106,7 @@ export function BlitzModule({t, bestBlitzStreak, onRecordBlitzResult}: BlitzModu
     setSelectedKey(key);
     if (key === q.answerKey) {
       const nextStreak = streak + 1;
-      const gained = Math.round(20 * multiplier);
+      const gained = Math.round(20 * multiplier * diffMult);
       setStreak(nextStreak);
       setScore((s) => s + gained);
       playSuccess();
@@ -94,8 +122,7 @@ export function BlitzModule({t, bestBlitzStreak, onRecordBlitzResult}: BlitzModu
     playClick();
     setSelectedKey(null);
     if (deckIdx + 1 >= deck.length) {
-      // Automatically roll a brand new procedural deck when finishing current set
-      setDeck(generateDynamicQuestionDeck(createFreshSeedCode(), 12));
+      setDeck(generateDynamicQuestionDeck(createFreshSeedCode(), 12, difficulty));
       setDeckIdx(0);
     } else {
       setDeckIdx((prev) => prev + 1);
@@ -104,10 +131,10 @@ export function BlitzModule({t, bestBlitzStreak, onRecordBlitzResult}: BlitzModu
 
   const handleStartTimed = () => {
     playClick();
-    setDeck(generateDynamicQuestionDeck(createFreshSeedCode(), 12));
+    setDeck(generateDynamicQuestionDeck(createFreshSeedCode(), 12, difficulty));
     setDeckIdx(0);
     setTimedMode(true);
-    setTimeLeft(60);
+    setTimeLeft(getBlitzSeconds(difficulty));
     setScore(0);
     setStreak(0);
     setSelectedKey(null);
@@ -145,7 +172,7 @@ export function BlitzModule({t, bestBlitzStreak, onRecordBlitzResult}: BlitzModu
                 timedMode ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {t.blitz.timedMode}
+              {t.blitz.timedMode} ({getBlitzSeconds(difficulty)}s)
             </button>
           </div>
 

@@ -4,6 +4,8 @@ import type {TranslationDict} from '../i18n/types';
 import {
   createFreshSeedCode,
   generatePulleyChallenge,
+  getDifficultyXpMultiplier,
+  type DifficultyLevel,
   type GeneratedPulleyChallenge,
 } from '../utils/challengeEngine';
 import {computePulleyMetrics, type PulleyRigType} from '../utils/physics';
@@ -11,10 +13,11 @@ import {playClick, playError, playSuccess} from '../utils/sound';
 
 interface PulleysModuleProps {
   t: TranslationDict;
+  difficulty: DifficultyLevel;
   onAwardXp: (xp: number) => void;
 }
 
-export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
+export function PulleysModule({t, difficulty, onAwardXp}: PulleysModuleProps) {
   const [mode, setMode] = useState<'lab' | 'challenge'>('lab');
   const [rigType, setRigType] = useState<PulleyRigType>('block2');
   const [loadKg, setLoadKg] = useState(40);
@@ -24,9 +27,15 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
 
   const [challengeCount, setChallengeCount] = useState(1);
   const [activeChallenge, setActiveChallenge] = useState<GeneratedPulleyChallenge>(() =>
-    generatePulleyChallenge(createFreshSeedCode())
+    generatePulleyChallenge(createFreshSeedCode(), difficulty)
   );
   const [challengeFeedback, setChallengeFeedback] = useState<'idle' | 'ok' | 'err'>('idle');
+
+  useEffect(() => {
+    setActiveChallenge(generatePulleyChallenge(createFreshSeedCode(), difficulty));
+    setChallengeFeedback('idle');
+    setIsLifted(false);
+  }, [difficulty]);
 
   const effectiveLoadKg = mode === 'challenge' ? activeChallenge.loadKg : loadKg;
   const maxLiftMeters = 2.0;
@@ -81,7 +90,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
       setChallengeFeedback('ok');
       setIsLifted(true);
       playSuccess();
-      onAwardXp(35);
+      onAwardXp(Math.round(35 * getDifficultyXpMultiplier(difficulty)));
     } else {
       setChallengeFeedback('err');
       playError();
@@ -90,7 +99,7 @@ export function PulleysModule({t, onAwardXp}: PulleysModuleProps) {
 
   const handleNextChallenge = () => {
     playClick();
-    setActiveChallenge(generatePulleyChallenge(createFreshSeedCode()));
+    setActiveChallenge(generatePulleyChallenge(createFreshSeedCode(), difficulty));
     setChallengeCount((c) => c + 1);
     setChallengeFeedback('idle');
     setIsLifted(false);

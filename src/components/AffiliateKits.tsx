@@ -5,6 +5,21 @@ interface AffiliateKitsProps {
   t: TranslationDict;
 }
 
+export const AMAZON_AFFILIATE_TAG = 'bastelar-21';
+
+function withAmazonAffiliateTag(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    if (/(^|\.)amazon\./i.test(parsed.hostname)) {
+      parsed.hostname = 'www.amazon.es';
+      parsed.searchParams.set('tag', AMAZON_AFFILIATE_TAG);
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 export function AffiliateKits({t}: AffiliateKitsProps) {
   return (
     <section id="kits" className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -36,7 +51,7 @@ export function AffiliateKits({t}: AffiliateKitsProps) {
 
               <div className="mt-5">
                 <a
-                  href={kit.url}
+                  href={withAmazonAffiliateTag(kit.url)}
                   target="_blank"
                   rel="sponsored nofollow noopener"
                   className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-900 hover:border-[#1D4ED8] hover:text-[#1D4ED8] transition-colors whitespace-nowrap"

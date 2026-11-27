@@ -10,8 +10,8 @@ interface DynamicQuestionSvgProps {
 }
 
 export function DynamicQuestionSvg({question, revealed, t}: DynamicQuestionSvgProps) {
-  const [gearAngles, setGearAngles] = useState<number[]>([0, 0, 0, 0]);
-  const anglesRef = useRef<number[]>([0, 0, 0, 0]);
+  const [gearAngles, setGearAngles] = useState<number[]>([0, 0, 0, 0, 0]);
+  const anglesRef = useRef<number[]>([0, 0, 0, 0, 0]);
 
   const leverEval =
     question.category === 'lever'

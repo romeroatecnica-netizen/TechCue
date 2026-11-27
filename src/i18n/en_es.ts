@@ -34,6 +34,13 @@ export const en: TranslationDict = {
     blitz: 'Pre-Tech Blitz',
     duel: 'Link Duel',
   },
+  difficulty: {
+    label: 'Difficulty',
+    easy: 'Easy',
+    medium: 'Medium',
+    hard: 'Hard',
+    xpBonus: 'XP Multiplier',
+  },
   duel: {
     heroBtn: 'Challenge by Link',
     title: 'Link Duel Arena — 5-Round Seeded Gauntlet',
@@ -204,7 +211,7 @@ export const en: TranslationDict = {
         description:
           'Modular axles, spur gears (8Z to 40Z), belt drives, and pulley blocks for testing real mechanical advantage and torque ratios.',
         priceHint: 'Ages 8+ · ~180 pieces',
-        url: 'https://www.amazon.com/s?k=stem+gear+pulley+engineering+kit',
+        url: 'https://www.amazon.es/s?k=stem+gear+pulley+engineering+kit&tag=bastelar-21',
       },
       {
         category: 'Circuits & Robotics',
@@ -212,7 +219,7 @@ export const en: TranslationDict = {
         description:
           'Includes 9V battery clips, tactile switches, LEDs, resistors, buzzers, and a hobby DC motor for safe series and parallel labs.',
         priceHint: 'Beginner Friendly · Solderless',
-        url: 'https://www.amazon.com/s?k=electronics+breadboard+dc+motor+starter+kit',
+        url: 'https://www.amazon.es/s?k=electronics+breadboard+dc+motor+starter+kit&tag=bastelar-21',
       },
       {
         category: 'Measurement Tools',
@@ -220,7 +227,7 @@ export const en: TranslationDict = {
         description:
           'Safely measure DC voltage, continuity beep tests, and resistance across real breadboard circuits and batteries.',
         priceHint: 'CAT II · Continuity Buzzer',
-        url: 'https://www.amazon.com/s?k=compact+digital+multimeter+continuity',
+        url: 'https://www.amazon.es/s?k=compact+digital+multimeter+continuity&tag=bastelar-21',
       },
       {
         category: 'Engineering Books',
@@ -228,7 +235,7 @@ export const en: TranslationDict = {
         description:
           'Illustrated guide explaining gears, levers, linkages, cams, and electrical principles for curious builders and students.',
         priceHint: 'Illustrated Reference',
-        url: 'https://www.amazon.com/s?k=how+machines+work+illustrated+engineering+book',
+        url: 'https://www.amazon.es/s?k=how+machines+work+illustrated+engineering+book&tag=bastelar-21',
       },
     ],
   },
@@ -347,6 +354,13 @@ export const es: TranslationDict = {
     circuits: 'Circuitos Eléctricos',
     blitz: 'Reto Mixto Blitz',
     duel: 'Reto por Enlace',
+  },
+  difficulty: {
+    label: 'Dificultad',
+    easy: 'Fácil',
+    medium: 'Media',
+    hard: 'Difícil',
+    xpBonus: 'Multiplicador XP',
   },
   duel: {
     heroBtn: 'Retar por Enlace',
@@ -518,7 +532,7 @@ export const es: TranslationDict = {
         description:
           'Ejes modulares, ruedas dentadas (8Z a 40Z), correas y poleas para comprobar ventajas mecánicas y relaciones de transmisión reales.',
         priceHint: '8+ años · ~180 piezas',
-        url: 'https://www.amazon.es/s?k=kit+engranajes+poleas+stem',
+        url: 'https://www.amazon.es/s?k=kit+engranajes+poleas+stem&tag=bastelar-21',
       },
       {
         category: 'Circuitos y Robótica',
@@ -526,7 +540,7 @@ export const es: TranslationDict = {
         description:
           'Incluye portapilas de 9V, interruptores, LEDs, resistencias, zumbador y motor eléctrico para prácticas en serie y paralelo.',
         priceHint: 'Sin soldadura · Iniciación',
-        url: 'https://www.amazon.es/s?k=kit+electronica+protoboard+iniciacion',
+        url: 'https://www.amazon.es/s?k=kit+electronica+protoboard+iniciacion&tag=bastelar-21',
       },
       {
         category: 'Instrumentos de Medida',
@@ -534,7 +548,7 @@ export const es: TranslationDict = {
         description:
           'Mide tensión continua, continuidad sonora y resistencia eléctrica de forma segura en montajes escolares.',
         priceHint: 'CAT II · Avisador continuidad',
-        url: 'https://www.amazon.es/s?k=multimetro+digital+compacto+estudiantes',
+        url: 'https://www.amazon.es/s?k=multimetro+digital+compacto+estudiantes&tag=bastelar-21',
       },
       {
         category: 'Libros de Ingeniería',
@@ -542,7 +556,7 @@ export const es: TranslationDict = {
         description:
           'Libro ilustrado sobre palancas, engranajes, mecanismos de transmisión y electricidad para jóvenes curiosos.',
         priceHint: 'Guía Ilustrada',
-        url: 'https://www.amazon.es/s?k=libro+como+funcionan+las+maquinas+tecnologia',
+        url: 'https://www.amazon.es/s?k=libro+como+funcionan+las+maquinas+tecnologia&tag=bastelar-21',
       },
     ],
   },

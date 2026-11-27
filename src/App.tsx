@@ -1,4 +1,4 @@
-import {Anchor, Cog, Cpu, Link2, Zap} from 'lucide-react';
+import {Anchor, Cog, Cpu, Gauge, Link2, Zap} from 'lucide-react';
 import {useMemo, useState} from 'react';
 import {AdSlot} from './components/AdSlot';
 import {AffiliateKits} from './components/AffiliateKits';
@@ -17,7 +17,11 @@ import {detectInitialLanguage, persistLanguage, TRANSLATIONS} from './i18n';
 import type {ModuleId} from './i18n/types';
 import {
   clearDuelFromUrl,
+  getDifficultyXpMultiplier,
+  loadDifficultyPreference,
   readInitialDuelFromUrl,
+  saveDifficultyPreference,
+  type DifficultyLevel,
   type DuelPayload,
 } from './utils/challengeEngine';
 import {loadSoundPreference, playClick, setSoundEnabled} from './utils/sound';
@@ -32,6 +36,7 @@ import {
 export default function App() {
   const [lang, setLang] = useState<LocaleCode>(() => detectInitialLanguage());
   const [soundEnabled, setSoundState] = useState<boolean>(() => loadSoundPreference());
+  const [difficulty, setDifficulty] = useState<DifficultyLevel>(() => loadDifficultyPreference());
   const [incomingDuel, setIncomingDuel] = useState<DuelPayload | null>(() => readInitialDuelFromUrl());
   const [activeTab, setActiveTab] = useState<ModuleId>(() =>
     readInitialDuelFromUrl() ? 'duel' : 'gears'
@@ -52,6 +57,12 @@ export default function App() {
   const handleChangeLang = (nextLang: LocaleCode) => {
     setLang(nextLang);
     persistLanguage(nextLang);
+  };
+
+  const handleChangeDifficulty = (next: DifficultyLevel) => {
+    playClick();
+    setDifficulty(next);
+    saveDifficultyPreference(next);
   };
 
   const handleToggleSound = () => {
@@ -183,6 +194,12 @@ export default function App() {
     {id: 'duel', label: t.tabs.duel, icon: Link2},
   ];
 
+  const difficultyOptions: Array<{id: DifficultyLevel; label: string}> = [
+    {id: 'easy', label: t.difficulty.easy},
+    {id: 'medium', label: t.difficulty.medium},
+    {id: 'hard', label: t.difficulty.hard},
+  ];
+
   return (
     <div className="min-h-screen text-slate-900">
       <Header
@@ -253,55 +270,106 @@ export default function App() {
 
         {/* Interactive Trainer Workspace */}
         <section id="trainer" className="mx-auto max-w-7xl px-4 pt-6 pb-4 sm:px-6">
-          {/* Segmented Module Selector */}
-          <div
-            role="tablist"
-            aria-label={t.nav.trainer}
-            className="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-slate-300 bg-white p-1.5 sm:grid-cols-5"
-          >
-            {tabItems.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              const isDuel = tab.id === 'duel';
-              return (
-                <button
-                  key={tab.id}
-                  role="tab"
-                  aria-selected={isActive}
-                  type="button"
-                  onClick={() => {
-                    playClick();
-                    setActiveTab(tab.id);
-                  }}
-                  className={`flex h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
-                    isActive
-                      ? isDuel
-                        ? 'bg-[#EA580C] text-white'
-                        : 'bg-[#0F172A] text-white'
-                      : isDuel
-                        ? 'text-[#EA580C] hover:bg-orange-50'
-                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{tab.label}</span>
-                </button>
-              );
-            })}
+          {/* Segmented Module Selector + Global Challenge Difficulty Bar */}
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div
+              role="tablist"
+              aria-label={t.nav.trainer}
+              className="grid flex-1 grid-cols-2 gap-1.5 rounded-xl border border-slate-300 bg-white p-1.5 sm:grid-cols-5"
+            >
+              {tabItems.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                const isDuel = tab.id === 'duel';
+                return (
+                  <button
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={isActive}
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      setActiveTab(tab.id);
+                    }}
+                    className={`flex h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                      isActive
+                        ? isDuel
+                          ? 'bg-[#EA580C] text-white'
+                          : 'bg-[#0F172A] text-white'
+                        : isDuel
+                          ? 'text-[#EA580C] hover:bg-orange-50'
+                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Difficulty Segmented Control */}
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-300 bg-white px-3 py-1.5 lg:justify-start">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                <Gauge className="h-4 w-4 text-[#1D4ED8]" aria-hidden="true" />
+                <span>{t.difficulty.label}</span>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono-tabular text-[#EA580C]">
+                  {getDifficultyXpMultiplier(difficulty)}x
+                </span>
+              </div>
+
+              <div className="inline-flex rounded-lg bg-slate-100 p-1">
+                {difficultyOptions.map((opt) => {
+                  const active = difficulty === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleChangeDifficulty(opt.id)}
+                      className={`h-8 rounded-md px-2.5 text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                        active
+                          ? opt.id === 'hard'
+                            ? 'bg-[#DC2626] text-white'
+                            : opt.id === 'medium'
+                              ? 'bg-[#1D4ED8] text-white'
+                              : 'bg-[#047857] text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {activeTab === 'gears' && (
-            <GearsModule t={t} onAwardXp={(xp) => handleAwardModuleXp('gears', xp)} />
+            <GearsModule
+              t={t}
+              difficulty={difficulty}
+              onAwardXp={(xp) => handleAwardModuleXp('gears', xp)}
+            />
           )}
           {activeTab === 'pulleys' && (
-            <PulleysModule t={t} onAwardXp={(xp) => handleAwardModuleXp('pulleys', xp)} />
+            <PulleysModule
+              t={t}
+              difficulty={difficulty}
+              onAwardXp={(xp) => handleAwardModuleXp('pulleys', xp)}
+            />
           )}
           {activeTab === 'circuits' && (
-            <CircuitsModule t={t} onAwardXp={(xp) => handleAwardModuleXp('circuits', xp)} />
+            <CircuitsModule
+              t={t}
+              difficulty={difficulty}
+              onAwardXp={(xp) => handleAwardModuleXp('circuits', xp)}
+            />
           )}
           {activeTab === 'blitz' && (
             <BlitzModule
               t={t}
+              difficulty={difficulty}
               bestBlitzStreak={activeProfile.bestBlitzStreak}
               onRecordBlitzResult={handleRecordBlitzResult}
             />
@@ -310,6 +378,8 @@ export default function App() {
             <DuelArena
               t={t}
               lang={lang}
+              difficulty={difficulty}
+              onChangeDifficulty={handleChangeDifficulty}
               activeProfileName={activeProfile.name}
               incomingDuel={incomingDuel}
               onResetIncomingDuel={handleResetIncomingDuel}

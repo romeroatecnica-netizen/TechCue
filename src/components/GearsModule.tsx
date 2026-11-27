@@ -5,6 +5,8 @@ import {
   createFreshSeedCode,
   generateGearBuilderMission,
   generateGearQuiz,
+  getDifficultyXpMultiplier,
+  type DifficultyLevel,
   type GeneratedGearMission,
   type GeneratedGearQuiz,
 } from '../utils/challengeEngine';
@@ -18,18 +20,19 @@ import {playClick, playError, playSuccess} from '../utils/sound';
 
 interface GearsModuleProps {
   t: TranslationDict;
+  difficulty: DifficultyLevel;
   onAwardXp: (xp: number) => void;
 }
 
 const TOOTH_OPTIONS = [8, 12, 16, 20, 24, 32];
 
-export function GearsModule({t, onAwardXp}: GearsModuleProps) {
+export function GearsModule({t, difficulty, onAwardXp}: GearsModuleProps) {
   const [mode, setMode] = useState<'challenge' | 'builder'>('challenge');
 
   // Procedural Challenge state
   const [quizCount, setQuizCount] = useState(1);
   const [activeQuiz, setActiveQuiz] = useState<GeneratedGearQuiz>(() =>
-    generateGearQuiz(createFreshSeedCode())
+    generateGearQuiz(createFreshSeedCode(), difficulty)
   );
   const [guessDir, setGuessDir] = useState<RotationDir | null>(null);
   const [guessSpeed, setGuessSpeed] = useState<'faster' | 'same' | 'slower' | null>(null);
@@ -38,7 +41,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
   // Procedural Builder state
   const [missionCount, setMissionCount] = useState(1);
   const [activeMission, setActiveMission] = useState<GeneratedGearMission>(() =>
-    generateGearBuilderMission(createFreshSeedCode())
+    generateGearBuilderMission(createFreshSeedCode(), difficulty)
   );
   const [builderGears, setBuilderGears] = useState<GearSpec[]>([
     {id: 'b_g1', teeth: 12},
@@ -49,8 +52,20 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
 
   // Animation state
   const [isSpinning, setIsSpinning] = useState(true);
-  const [anglesDeg, setAnglesDeg] = useState<number[]>([0, 0, 0, 0]);
-  const anglesRef = useRef<number[]>([0, 0, 0, 0]);
+  const [anglesDeg, setAnglesDeg] = useState<number[]>([0, 0, 0, 0, 0]);
+  const anglesRef = useRef<number[]>([0, 0, 0, 0, 0]);
+
+  useEffect(() => {
+    const nextQuiz = generateGearQuiz(createFreshSeedCode(), difficulty);
+    const nextMission = generateGearBuilderMission(createFreshSeedCode(), difficulty);
+    setActiveQuiz(nextQuiz);
+    setActiveMission(nextMission);
+    setBuilderMotorDir(nextMission.motorDir);
+    setGuessDir(null);
+    setGuessSpeed(null);
+    setQuizFeedback('idle');
+    setBuilderFeedback('idle');
+  }, [difficulty]);
 
   const activeGears = mode === 'challenge' ? activeQuiz.gears : builderGears;
   const activeMotorDir = mode === 'challenge' ? activeQuiz.motorDir : builderMotorDir;
@@ -115,7 +130,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
       setQuizFeedback('ok');
       setIsSpinning(true);
       playSuccess();
-      onAwardXp(30);
+      onAwardXp(Math.round(30 * getDifficultyXpMultiplier(difficulty)));
     } else {
       setQuizFeedback('err');
       playError();
@@ -124,7 +139,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
 
   const handleNextQuiz = () => {
     playClick();
-    setActiveQuiz(generateGearQuiz(createFreshSeedCode()));
+    setActiveQuiz(generateGearQuiz(createFreshSeedCode(), difficulty));
     setQuizCount((c) => c + 1);
     setGuessDir(null);
     setGuessSpeed(null);
@@ -140,7 +155,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
     if (dirOk && ratioOk) {
       setBuilderFeedback('ok');
       playSuccess();
-      onAwardXp(40);
+      onAwardXp(Math.round(40 * getDifficultyXpMultiplier(difficulty)));
     } else {
       setBuilderFeedback('err');
       playError();
@@ -149,7 +164,7 @@ export function GearsModule({t, onAwardXp}: GearsModuleProps) {
 
   const handleNextMission = () => {
     playClick();
-    const next = generateGearBuilderMission(createFreshSeedCode());
+    const next = generateGearBuilderMission(createFreshSeedCode(), difficulty);
     setActiveMission(next);
     setMissionCount((c) => c + 1);
     setBuilderMotorDir(next.motorDir);

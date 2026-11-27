@@ -4,6 +4,8 @@ import type {TranslationDict} from '../i18n/types';
 import {
   createFreshSeedCode,
   generateCircuitPuzzle,
+  getDifficultyXpMultiplier,
+  type DifficultyLevel,
   type GeneratedCircuitPuzzle,
 } from '../utils/challengeEngine';
 import {
@@ -15,20 +17,28 @@ import {playAlert, playClick, playError, playSuccess} from '../utils/sound';
 
 interface CircuitsModuleProps {
   t: TranslationDict;
+  difficulty: DifficultyLevel;
   onAwardXp: (xp: number) => void;
 }
 
-export function CircuitsModule({t, onAwardXp}: CircuitsModuleProps) {
+export function CircuitsModule({t, difficulty, onAwardXp}: CircuitsModuleProps) {
   const [mode, setMode] = useState<'puzzle' | 'sandbox'>('puzzle');
   const [puzzleCount, setPuzzleCount] = useState(1);
   const [activePuzzle, setActivePuzzle] = useState<GeneratedCircuitPuzzle>(() =>
-    generateCircuitPuzzle(createFreshSeedCode())
+    generateCircuitPuzzle(createFreshSeedCode(), difficulty)
   );
   const [boardId, setBoardId] = useState<CircuitBoardId>('series');
   const [switches, setSwitches] = useState<SwitchStateMap>(() => ({...activePuzzle.initialSwitches}));
   const [feedback, setFeedback] = useState<'idle' | 'ok' | 'err'>('idle');
   const [rotorDeg, setRotorDeg] = useState(0);
   const rotorRef = useRef(0);
+
+  useEffect(() => {
+    const next = generateCircuitPuzzle(createFreshSeedCode(), difficulty);
+    setActivePuzzle(next);
+    setSwitches({...next.initialSwitches});
+    setFeedback('idle');
+  }, [difficulty]);
 
   const currentBoard = mode === 'puzzle' ? activePuzzle.boardId : boardId;
 
@@ -82,7 +92,7 @@ export function CircuitsModule({t, onAwardXp}: CircuitsModuleProps) {
     if (ok) {
       setFeedback('ok');
       playSuccess();
-      onAwardXp(35);
+      onAwardXp(Math.round(35 * getDifficultyXpMultiplier(difficulty)));
     } else {
       setFeedback('err');
       playError();
@@ -91,7 +101,7 @@ export function CircuitsModule({t, onAwardXp}: CircuitsModuleProps) {
 
   const handleNextPuzzle = () => {
     playClick();
-    const next = generateCircuitPuzzle(createFreshSeedCode());
+    const next = generateCircuitPuzzle(createFreshSeedCode(), difficulty);
     setActivePuzzle(next);
     setPuzzleCount((c) => c + 1);
     setSwitches({...next.initialSwitches});

@@ -17,6 +17,8 @@ import {
   buildDuelShareUrl,
   createFreshSeedCode,
   generateDynamicQuestionDeck,
+  getDifficultyXpMultiplier,
+  type DifficultyLevel,
   type DuelPayload,
   type DynamicQuestion,
 } from '../utils/challengeEngine';
@@ -26,6 +28,8 @@ import {DynamicQuestionSvg} from './DynamicQuestionSvg';
 interface DuelArenaProps {
   t: TranslationDict;
   lang: LocaleCode;
+  difficulty: DifficultyLevel;
+  onChangeDifficulty: (level: DifficultyLevel) => void;
   activeProfileName: string;
   incomingDuel: DuelPayload | null;
   onResetIncomingDuel: () => void;
@@ -37,6 +41,8 @@ const DUEL_ROUNDS = 5;
 export function DuelArena({
   t,
   lang,
+  difficulty,
+  onChangeDifficulty,
   activeProfileName,
   incomingDuel,
   onResetIncomingDuel,
@@ -54,7 +60,10 @@ export function DuelArena({
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [copiedType, setCopiedType] = useState<'open' | 'score' | null>(null);
 
-  // Sync if an incoming duel URL is loaded
+  const effectiveDifficulty: DifficultyLevel = incomingDuel
+    ? incomingDuel.difficulty
+    : difficulty;
+
   useEffect(() => {
     if (incomingDuel) {
       setSeed(incomingDuel.seed);
@@ -68,7 +77,6 @@ export function DuelArena({
     }
   }, [incomingDuel]);
 
-  // Live timer while playing
   useEffect(() => {
     if (phase !== 'playing') return;
     const id = window.setInterval(() => {
@@ -78,10 +86,27 @@ export function DuelArena({
   }, [phase]);
 
   const roundsCount = incomingDuel?.rounds ?? DUEL_ROUNDS;
-  const deck = useMemo(() => generateDynamicQuestionDeck(seed, roundsCount), [seed, roundsCount]);
+  const deck = useMemo(
+    () => generateDynamicQuestionDeck(seed, roundsCount, effectiveDifficulty),
+    [seed, roundsCount, effectiveDifficulty]
+  );
   const currentQ = deck[roundIdx];
 
-  const getOptionLabel = (q: DynamicQuestion, labelKey: DynamicQuestion['options'][number]['labelKey']) => {
+  const getDifficultyLabel = (lvl: DifficultyLevel) => {
+    switch (lvl) {
+      case 'easy':
+        return t.difficulty.easy;
+      case 'medium':
+        return t.difficulty.medium;
+      case 'hard':
+        return t.difficulty.hard;
+    }
+  };
+
+  const getOptionLabel = (
+    q: DynamicQuestion,
+    labelKey: DynamicQuestion['options'][number]['labelKey']
+  ) => {
     switch (labelKey) {
       case 'left':
         return t.blitz.tiltsLeft;
@@ -137,7 +162,8 @@ export function DuelArena({
     const isRight = key === currentQ.answerKey;
     const secTaken = Math.max(0, (Date.now() - roundStartMs) / 1000);
     const speedBonus = isRight ? Math.max(0, Math.round(40 - secTaken * 3)) : 0;
-    const gained = isRight ? 100 + speedBonus : 0;
+    const mult = getDifficultyXpMultiplier(effectiveDifficulty);
+    const gained = isRight ? Math.round((100 + speedBonus) * mult) : 0;
 
     if (isRight) {
       setScore((s) => s + gained);
@@ -168,6 +194,7 @@ export function DuelArena({
       ? {
           seed,
           rounds: roundsCount,
+          difficulty: effectiveDifficulty,
           challengerName: activeProfileName,
           challengerScore: score,
           challengerTimeSec: Math.max(1, elapsedSec),
@@ -175,6 +202,7 @@ export function DuelArena({
       : {
           seed,
           rounds: roundsCount,
+          difficulty: effectiveDifficulty,
           challengerName: activeProfileName,
         };
     const link = buildDuelShareUrl(payload, lang);
@@ -183,7 +211,6 @@ export function DuelArena({
       setCopiedType(withScore ? 'score' : 'open');
       window.setTimeout(() => setCopiedType(null), 2600);
     } catch {
-      // Fallback hidden input copy
       const input = document.createElement('input');
       input.value = link;
       document.body.appendChild(input);
@@ -200,6 +227,7 @@ export function DuelArena({
       {
         seed,
         rounds: roundsCount,
+        difficulty: effectiveDifficulty,
         challengerName: activeProfileName,
         challengerScore: phase === 'summary' ? score : undefined,
         challengerTimeSec: phase === 'summary' ? Math.max(1, elapsedSec) : undefined,
@@ -236,12 +264,17 @@ export function DuelArena({
       {/* Top Duel Header Strip */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#EA580C]">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#EA580C]">
             <Link2 className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{incomingDuel ? t.duel.incomingBanner : t.tabs.duel}</span>
             <span aria-hidden="true">·</span>
             <span className="font-mono-tabular text-slate-700">
               {t.duel.seedLabel}: {seed}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="font-mono-tabular text-[#1D4ED8]">
+              {t.difficulty.label}: {getDifficultyLabel(effectiveDifficulty)} (
+              {getDifficultyXpMultiplier(effectiveDifficulty)}x)
             </span>
           </div>
           <h2 className="font-display mt-1 text-xl font-bold text-slate-900">{t.duel.title}</h2>
@@ -263,6 +296,8 @@ export function DuelArena({
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50/70 px-4 py-2.5 text-xs">
           <div className="font-semibold text-slate-900">
             {t.duel.challengerResult}: <span className="font-bold">{incomingDuel.challengerName ?? 'Player 1'}</span>
+            <span aria-hidden="true"> · </span>
+            <span>{getDifficultyLabel(effectiveDifficulty)}</span>
           </div>
           {hasChallengerScore && (
             <div className="font-mono-tabular font-bold text-[#EA580C]">
@@ -280,7 +315,7 @@ export function DuelArena({
           <div className="drafting-stage flex flex-col justify-between rounded-xl border border-slate-800 p-5 text-white lg:col-span-7">
             <div>
               <p className="font-mono-tabular text-xs font-semibold text-sky-400">
-                {t.duel.seedLabel} · {seed}
+                {t.duel.seedLabel} · {seed} · {getDifficultyLabel(effectiveDifficulty)}
               </p>
               <div className="mt-4 grid grid-cols-5 gap-2">
                 {deck.map((item, idx) => (
@@ -323,9 +358,37 @@ export function DuelArena({
             <div>
               <h3 className="font-display text-base font-bold text-slate-900">{t.duel.heroBtn}</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">{t.duel.subtitle}</p>
+
+              {/* Dedicated Duel Difficulty Selector */}
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-slate-700">{t.difficulty.label}</p>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {(['easy', 'medium', 'hard'] as const).map((lvl) => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => {
+                        playClick();
+                        onChangeDifficulty(lvl);
+                        setSeed(createFreshSeedCode());
+                      }}
+                      className={`h-10 rounded-lg border px-2 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                        effectiveDifficulty === lvl
+                          ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {getDifficultyLabel(lvl)}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
+
             <div className="mt-5 flex items-center gap-2 border-t border-slate-200 pt-4 text-xs font-medium text-slate-600">
-              <span className="font-mono-tabular font-bold text-slate-900">{roundsCount}</span>
+              <span className="font-mono-tabular font-bold text-slate-900">
+                {roundsCount} · {getDifficultyXpMultiplier(effectiveDifficulty)}x
+              </span>
               <span>·</span>
               <span>{t.tabs.gears}</span>
               <span>·</span>
@@ -447,7 +510,8 @@ export function DuelArena({
                         : t.blitz.roundComplete}
                 </h3>
                 <p className="font-mono-tabular text-xs text-slate-600">
-                  {t.duel.seedLabel}: {seed} · {t.duel.accuracyLabel}: {correctCount}/{deck.length}
+                  {t.duel.seedLabel}: {seed} · {getDifficultyLabel(effectiveDifficulty)} ·{' '}
+                  {t.duel.accuracyLabel}: {correctCount}/{deck.length}
                 </p>
               </div>
             </div>
